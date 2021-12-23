@@ -74,7 +74,8 @@ def recourse(model, scm_abd, features, obs):
 
     pop = toolbox.population(n=10)
     hof = tools.HallOfFame(1)
-    pop, logbook = eaMuPlusLambda(pop, toolbox, 4, 20, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof, verbose=False)
+    pop, logbook = eaMuPlusLambda(pop, toolbox, 4, 20, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof,
+                                  verbose=False)
 
     winner = list(hof)[0]
     return winner, pop, logbook
@@ -194,7 +195,8 @@ ixss_recourse = [[]]
 interventionss = [[]]
 
 for ii in [1, 2]:
-    ixs_recourse, interventions, X_new, y_new = recourse_population(scm, model, batches[ii][0], batches[ii][1], batches[ii][2], proportion=1.0)
+    ixs_recourse, interventions, X_new, y_new = recourse_population(scm, model, batches[ii][0], batches[ii][1],
+                                                                    batches[ii][2], proportion=1.0)
     batches_post.append((X_new, y_new))
     ixss_recourse.append(ixs_recourse)
     interventionss.append(interventions)
@@ -233,6 +235,7 @@ predict_all_comb = model.predict(data)
 print('Feature names: {}'.format(X.columns))
 for ii in range(len(data)):
     print('prediction for {}: {}'.format(data[ii], predict_all_comb[ii]))
+
 
 ## Application to batch 2
 ## refitting model on batch 0 and 1
