@@ -17,6 +17,7 @@ from deap import tools
 from tqdm import tqdm
 
 
+
 # RECOURSE FUNCTIONS
 
 def indvd_to_intrv(features, individual, obs):
@@ -37,7 +38,7 @@ def evaluate(model, scm, obs, features, individual):
 
     ind = np.array(individual)
     cost = np.dot(ind, costs)
-    return cost + expected_below_thresh,
+    return cost + expected_below_thresh
 
 
 def evaluate_meaningful(scm_abd, features, individual):
@@ -94,6 +95,8 @@ def recourse_population(scm, model, X, y, U, proportion=0.5, nsamples=10 ** 2):
 
     for ix in tqdm(ixs_recourse):
         obs = X.iloc[ix, :]
+        # TODO incorporate condition about whether to sample for the individual or subpopulation-based
+        # for subpopulation-based use do operator to fix the values for all non-descendants of Y
         scm_abd = scm.abduct(obs, n_samples=nsamples)
         cntxt = scm_abd.sample_context(size=nsamples)
 
