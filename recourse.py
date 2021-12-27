@@ -82,7 +82,7 @@ def recourse(model, scm_abd, features, obs):
     return winner, pop, logbook
 
 
-def recourse_population(scm, model, X, y, U, proportion=0.5, nsamples=10 ** 2):
+def recourse_population(scm, model, X, y, U, y_name, proportion=0.5, nsamples=10 ** 2, r_type='individualized'):
     predictions = model.predict(X)
     ixs_rejected = np.arange(len(predictions))[predictions == 0]
     ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)))
@@ -95,13 +95,20 @@ def recourse_population(scm, model, X, y, U, proportion=0.5, nsamples=10 ** 2):
 
     for ix in tqdm(ixs_recourse):
         obs = X.iloc[ix, :]
-        # TODO incorporate condition about whether to sample for the individual or subpopulation-based
-        # for subpopulation-based use do operator to fix the values for all non-descendants of Y
-        scm_abd = scm.abduct(obs, n_samples=nsamples)
-        cntxt = scm_abd.sample_context(size=nsamples)
+
+        scm_ = None
+
+        if r_type == 'subpopulation':
+            nds = scm.dag.get_nondescendants(y_name)
+            scm_ = scm.do(obs[nds])
+        elif r_type == 'individualized':
+            scm_ = scm.abduct(obs, n_samples=nsamples)
+            cntxt = scm_abd.sample_context(size=nsamples)
+        else:
+            raise NotImplementedError('r_type must be in {}'.format(['individualized', 'subpopulation']))
 
         # compute optimal action
-        winner, pop, logbook = recourse(model, scm_abd, X.columns, obs)
+        winner, pop, logbook = recourse(model, scm_, X.columns, obs)
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
         interventions.append(winner)
@@ -165,7 +172,6 @@ while i < N:
     batches.append((X_i, y_i, U_i))
     i += batch_size
 
-
 # FITTING MODEL 1 ON BATCH 0
 
 model = LogisticRegression()
@@ -180,10 +186,10 @@ perf2 = accuracy_score(batches[0][1], model.predict(batches[0][0]))
 # TESTING RECOURSE ON ONE OBSERVATION
 
 obs = batches[0][0].iloc[5, :]
-scm_abd = scm.abduct(obs)
-scm_abd.sample_context(1000)
-winner, log, population = recourse(model, scm_abd, batches[0][0].columns, obs)
-
+#scm_abd = scm.abduct(obs)
+scm_ = scm.do(obs[scm.dag.get_nondescendants(y_name)])
+scm_.sample_context(1000)
+winner, log, population = recourse(model, scm_, batches[0][0].columns, obs)
 
 # APPLYING RECOURSE TO WHOLE POPULATION
 
@@ -199,7 +205,7 @@ interventionss = [[]]
 
 for ii in [1, 2]:
     ixs_recourse, interventions, X_new, y_new = recourse_population(scm, model, batches[ii][0], batches[ii][1],
-                                                                    batches[ii][2], proportion=1.0)
+                                                                    batches[ii][2], y_name, proportion=1.0)
     batches_post.append((X_new, y_new))
     ixss_recourse.append(ixs_recourse)
     interventionss.append(interventions)
