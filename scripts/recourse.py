@@ -8,15 +8,13 @@ import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, accuracy_score
 
-from rfi.backend.causality.scm import BinomialBinarySCM
-from rfi.backend.causality.dags import DirectedAcyclicGraph
+from mar.causality import BinomialBinarySCM
+from mar.causality import DirectedAcyclicGraph
 
 from deap import base, creator
 from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
-
-
 
 # RECOURSE FUNCTIONS
 
@@ -38,8 +36,8 @@ def evaluate(model, scm, obs, features, individual):
 
     ind = np.array(individual)
     cost = np.dot(ind, costs)
-    return cost + expected_below_thresh
-
+    res = cost + expected_below_thresh
+    return res,
 
 def evaluate_meaningful(scm_abd, features, individual):
     intv_dict = indvd_to_intrv(features, individual, obs)
@@ -48,7 +46,7 @@ def evaluate_meaningful(scm_abd, features, individual):
     return values[y_name].mean(), values[y_name].std()
 
 
-def recourse(model, scm_abd, features, obs):
+def recourse(model, scm_, features, obs):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
@@ -65,7 +63,7 @@ def recourse(model, scm_abd, features, obs):
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     toolbox.register("select", tools.selNSGA2)
-    toolbox.register("evaluate", evaluate, model, scm_abd, obs, features)
+    toolbox.register("evaluate", evaluate, model, scm_, obs, features)
 
     stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
     stats.register("avg", np.mean, axis=0)
@@ -103,11 +101,11 @@ def recourse_population(scm, model, X, y, U, y_name, proportion=0.5, nsamples=10
             scm_ = scm.do(obs[nds])
         elif r_type == 'individualized':
             scm_ = scm.abduct(obs, n_samples=nsamples)
-            cntxt = scm_abd.sample_context(size=nsamples)
         else:
             raise NotImplementedError('r_type must be in {}'.format(['individualized', 'subpopulation']))
 
         # compute optimal action
+        cntxt = scm_.sample_context(size=nsamples)
         winner, pop, logbook = recourse(model, scm_, X.columns, obs)
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
@@ -186,7 +184,13 @@ perf2 = accuracy_score(batches[0][1], model.predict(batches[0][0]))
 # TESTING RECOURSE ON ONE OBSERVATION
 
 obs = batches[0][0].iloc[5, :]
-#scm_abd = scm.abduct(obs)
+scm_abd = scm.abduct(obs)
+scm_abd.sample_context(1000)
+winner, log, population = recourse(model, scm_abd, batches[0][0].columns, obs)
+
+# TESTING RECOURSE ON ONE OBSERVATION
+
+obs = batches[0][0].iloc[5, :]
 scm_ = scm.do(obs[scm.dag.get_nondescendants(y_name)])
 scm_.sample_context(1000)
 winner, log, population = recourse(model, scm_, batches[0][0].columns, obs)
