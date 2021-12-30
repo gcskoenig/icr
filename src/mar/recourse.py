@@ -24,7 +24,7 @@ def indvd_to_intrv(features, individual, obs):
     return dict
 
 
-def evaluate(model, scm, obs, features, individual):
+def evaluate(model, scm, obs, features, costs, individual):
     intv_dict = indvd_to_intrv(features, individual, obs)
 
     # sample from intervened distribution for obs_sub
@@ -37,18 +37,18 @@ def evaluate(model, scm, obs, features, individual):
     res = cost + expected_below_thresh
     return res,
 
-def evaluate_meaningful(scm_abd, features, individual):
+def evaluate_meaningful(scm_abd, features, y_name, individual, obs):
     intv_dict = indvd_to_intrv(features, individual, obs)
     # sample from intervened distribution for obs_sub
     values = scm_abd.compute(do=intv_dict)
     return values[y_name].mean(), values[y_name].std()
 
 
-def recourse(model, scm_, features, obs):
+def recourse(model, scm_, features, obs, costs):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
-    IND_SIZE = len(X.columns)
+    IND_SIZE = len(features)
     CX_PROB = 0.2
     MX_PROB = 0.5
     NGEN = 100
@@ -61,7 +61,7 @@ def recourse(model, scm_, features, obs):
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     toolbox.register("select", tools.selNSGA2)
-    toolbox.register("evaluate", evaluate, model, scm_, obs, features)
+    toolbox.register("evaluate", evaluate, model, scm_, obs, features, costs)
 
     stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
     stats.register("avg", np.mean, axis=0)
@@ -78,7 +78,7 @@ def recourse(model, scm_, features, obs):
     return winner, pop, logbook
 
 
-def recourse_population(scm, model, X, y, U, y_name, proportion=0.5, nsamples=10 ** 2, r_type='individualized'):
+def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2, r_type='individualized'):
     predictions = model.predict(X)
     ixs_rejected = np.arange(len(predictions))[predictions == 0]
     ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)))
@@ -104,7 +104,7 @@ def recourse_population(scm, model, X, y, U, y_name, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook = recourse(model, scm_, X.columns, obs)
+        winner, pop, logbook = recourse(model, scm_, X.columns, obs, costs)
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
         interventions.append(winner)
