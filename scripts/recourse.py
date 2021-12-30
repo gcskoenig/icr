@@ -5,6 +5,8 @@ from mar.causality import BinomialBinarySCM
 from mar.causality import DirectedAcyclicGraph
 from mar.recourse import *
 
+import numpy as np
+import math
 import torch
 import pandas as pd
 
