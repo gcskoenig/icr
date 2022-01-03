@@ -135,20 +135,33 @@ class StructuralCausalModel:
                 raise NotImplementedError('The noise is neither a torch.distributions.Distribution nor torch.Tensor')
         return self.get_noise_values()
 
-    def do(self, intervention_dict):
+    def do(self, intervention_dict, verbose=False):
         """Intervention
 
         :param intervention_dict: dictionary of interventions of the form 'variable-name' : value
         :return: copy of the structural causal model with the performend interventions
         """
         scm_itv = self.copy()
-        logging.info('Intervening on nodes: {}'.format(intervention_dict.keys()))
+        if verbose:
+            logging.info('Intervening on nodes: {}'.format(intervention_dict.keys()))
         # update structural equations
         for node in intervention_dict.keys():
             scm_itv.remove_parents(node)
             scm_itv.model[node]['noise_distribution'] = torch.tensor(intervention_dict[node])
         scm_itv.clear_values()
         return scm_itv
+
+    def fix_nondescendants(self, intervention_dict, obs):
+        """Fix the values of nondescendants of the intervened upon-variables that have been observed
+
+        :param intervention_dict: dictionary of interventions of the form 'variable-name' : value
+        :param obs: dictionary-like observation (individual)
+        :return: copy of the scm where nondescendants are fixed using do
+        """
+        nds = self.dag.get_nondescendants(intervention_dict.keys())
+        nds = set.intersection(set(obs.keys()), nds)
+        scm_ = self.do(obs[nds])
+        return scm_
 
     def abduct_node(self, node, obs, scm_partially_abducted=None, **kwargs):
         """Abduction

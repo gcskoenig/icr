@@ -24,11 +24,18 @@ def indvd_to_intrv(features, individual, obs):
     return dict
 
 
-def evaluate(model, scm, obs, features, costs, individual):
+def evaluate(model, scm, obs, features, costs, r_type, individual):
     intv_dict = indvd_to_intrv(features, individual, obs)
 
+    scm_ = scm.copy()
+
+    # for subpopulation-based recourse at this point nondescendants are fixed
+    if r_type == 'subpopulation':
+        scm_ = scm_.fix_nondescendants(intv_dict, obs)
+        cntxt = scm_.sample_context(scm.get_sample_size())
+
     # sample from intervened distribution for obs_sub
-    values = scm.compute(do=intv_dict)
+    values = scm_.compute(do=intv_dict)
     predictions = model.predict_proba(values[features])[:, 1]
     expected_below_thresh = np.mean(predictions) < 0.5
 
@@ -37,14 +44,24 @@ def evaluate(model, scm, obs, features, costs, individual):
     res = cost + expected_below_thresh
     return res,
 
-def evaluate_meaningful(scm_abd, features, y_name, individual, obs):
+
+def evaluate_meaningful(scm, features, y_name, individual, obs, r_type):
+    # WARNING: for individualized recourse we expect the scm to be abducted already
+
     intv_dict = indvd_to_intrv(features, individual, obs)
+    scm_ = scm.copy()
+
+    # for subpopulation-based recourse at this point nondescendants are fixed
+    if r_type == 'subpopulation':
+        scm_ = scm_.fix_nondescendants(intv_dict, obs)
+        scm_.sample_context(scm.get_sample_size())
+
     # sample from intervened distribution for obs_sub
-    values = scm_abd.compute(do=intv_dict)
+    values = scm_.compute(do=intv_dict)
     return values[y_name].mean(), values[y_name].std()
 
 
-def recourse(model, scm_, features, obs, costs):
+def recourse(model, scm_, features, obs, costs, r_type):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
@@ -61,7 +78,7 @@ def recourse(model, scm_, features, obs, costs):
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     toolbox.register("select", tools.selNSGA2)
-    toolbox.register("evaluate", evaluate, model, scm_, obs, features, costs)
+    toolbox.register("evaluate", evaluate, model, scm_, obs, features, costs, r_type)
 
     stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
     stats.register("avg", np.mean, axis=0)
@@ -94,9 +111,9 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
 
         scm_ = None
 
+        # for individualized recourse abduction is performed at this step
         if r_type == 'subpopulation':
-            nds = scm.dag.get_nondescendants(y_name)
-            scm_ = scm.do(obs[nds])
+            scm_ = scm.copy()
         elif r_type == 'individualized':
             scm_ = scm.abduct(obs, n_samples=nsamples)
         else:
@@ -104,7 +121,7 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook = recourse(model, scm_, X.columns, obs, costs)
+        winner, pop, logbook = recourse(model, scm_, X.columns, obs, costs, r_type)
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
         interventions.append(winner)

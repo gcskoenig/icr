@@ -68,17 +68,18 @@ perf2 = accuracy_score(batches[0][1], model.predict(batches[0][0]))
 # TESTING RECOURSE ON ONE OBSERVATION
 # a individualized
 
-obs = batches[0][0].iloc[5, :]
+obs = batches[0][0].iloc[1, :]
 scm_abd = scm.abduct(obs)
 scm_abd.sample_context(1000)
-winner, log, population = recourse(model, scm_abd, batches[0][0].columns, obs, costs)
+winner, log, population = recourse(model, scm_abd, batches[0][0].columns, obs, costs, 'individualized')
 
 # b subpopulation-based
 
-obs = batches[0][0].iloc[5, :]
-scm_ = scm.do(obs[scm.dag.get_nondescendants(y_name)])
+obs = batches[0][0].iloc[1, :]
+scm_ = scm.copy()
 scm_.sample_context(1000)
-winner, log, population = recourse(model, scm_, batches[0][0].columns, obs, costs)
+winner, log, population = recourse(model, scm_, batches[0][0].columns, obs, costs, 'subpopulation')
+
 
 
 # APPLYING RECOURSE TO WHOLE POPULATION
@@ -87,7 +88,7 @@ winner, log, population = recourse(model, scm_, batches[0][0].columns, obs, cost
 ## How meaningful is the recourse? (i.e. what is the improvement probability)
 ## What is the acceptance probability?
 
-r_type = 'individualized'
+r_type = 'subpopulation'
 
 logging.info('Recourse type: {}'.format(r_type))
 
