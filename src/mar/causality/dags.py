@@ -45,6 +45,12 @@ class DirectedAcyclicGraph:
         spouses = tuple([par for child in children for par in tuple(self.DAG.predecessors(child)) if par != node_ind])
         return set([self.var_names[node] for node in spouses])
 
+    def get_ancestors_node(self, node: str) -> set:
+        node_ind = search_nonsorted(self.var_names, [node])[0]
+        ancestors_ind = tuple(nx.ancestors(self.DAG, node_ind))
+        ancestors = set([self.var_names[ii] for ii in ancestors_ind])
+        return ancestors
+
     def __get_nondescendants_node(self, node: str) -> set:
         node_ind = search_nonsorted(self.var_names, [node])[0]
         descendants_ind = tuple(nx.descendants(self.DAG, node_ind))
@@ -54,10 +60,8 @@ class DirectedAcyclicGraph:
         return nondescendants
 
     def get_nondescendants(self, nodes: set) -> set:
-        if len(nodes) == 0:
-            return set(self.var_names)
-
         ndss = [self.__get_nondescendants_node(node) for node in nodes]
+        ndss.append(set(self.var_names))
         return set.intersection(*ndss)
 
     def plot_dag(self, ax=None):

@@ -175,19 +175,19 @@ class StructuralCausalModel:
             object to be stored as "noise" for the node in the model dictionary.
         """
 
-        logger.info('Abducting noise for: {}'.format(node))
+        logger.debug('Abducting noise for: {}'.format(node))
         # check whether node was observed, then only parents necessary for deterministic reconstruction
         if node in obs.index and self.INVERTIBLE:
             # if parents observed then reconstruct deterministically
             if set(self.model[node]['parents']).issubset(set(obs.index)):
-                logger.info('\t...by inverting the structural equation given the parents and node.')
+                logger.debug('\t...by inverting the structural equation given the parents and node.')
                 return self._abduct_node_par(node, obs, **kwargs)
             # if not all parents observed then the noise is dependent on the unobserved parent
             else:
-                logger.info('\t...as function of the parents noise.')
+                logger.debug('\t...as function of the parents noise.')
                 return self._abduct_node_par_unobs(node, obs, scm_partially_abducted, **kwargs)
         elif node not in obs.index:
-            logger.info('\t...using analytical formula and MC integration.')
+            logger.debug('\t...using analytical formula and MC integration.')
             return self._abduct_node_obs(node, obs, **kwargs)
         else:
             raise NotImplementedError('No solution for variable observed but not invertible developed yet.')
@@ -457,7 +457,9 @@ class BinomialBinarySCM(StructuralCausalModel):
         u_node = torch.tensor((obs[node] - input) % 2, dtype=torch.float)
         p = self.model[node]['noise_distribution'].probs
         p_new = u_node * p + (1 - u_node) * (1 - p)
-        return dist.Binomial(probs=torch.tensor(p_new))
+        if type(p_new) is not torch.Tensor:
+            p_new = torch.tensor(p_new)
+        return dist.Binomial(probs=p_new)
 
     def _abduct_node_obs(self, node, obs, n_samples=10**3, **kwargs):
         """

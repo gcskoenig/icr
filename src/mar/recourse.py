@@ -24,7 +24,7 @@ def indvd_to_intrv(features, individual, obs):
     return dict
 
 
-def evaluate(model, scm, obs, features, costs, r_type, individual):
+def evaluate(model, thresh, scm, obs, features, costs, lbd, r_type, individual):
     intv_dict = indvd_to_intrv(features, individual, obs)
 
     scm_ = scm.copy()
@@ -37,15 +37,15 @@ def evaluate(model, scm, obs, features, costs, r_type, individual):
     # sample from intervened distribution for obs_sub
     values = scm_.compute(do=intv_dict)
     predictions = model.predict_proba(values[features])[:, 1]
-    expected_below_thresh = np.mean(predictions) < 0.5
+    expected_below_thresh = np.mean(predictions) < thresh
 
     ind = np.array(individual)
     cost = np.dot(ind, costs)
-    res = cost + expected_below_thresh
+    res = cost + lbd * expected_below_thresh
     return res,
 
 
-def evaluate_meaningful(scm, features, y_name, individual, obs, r_type):
+def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, individual):
     # WARNING: for individualized recourse we expect the scm to be abducted already
 
     intv_dict = indvd_to_intrv(features, individual, obs)
@@ -53,15 +53,51 @@ def evaluate_meaningful(scm, features, y_name, individual, obs, r_type):
 
     # for subpopulation-based recourse at this point nondescendants are fixed
     if r_type == 'subpopulation':
-        scm_ = scm_.fix_nondescendants(intv_dict, obs)
+        acs = scm_.dag.get_ancestors_node(y_name)
+        intv_dict_causes = {k : intv_dict[k] for k in acs & intv_dict.keys()}
+        if len(intv_dict_causes.keys()) != len(intv_dict.keys()):
+            logger.debug('Intervention dict contained interventions on non-ascendants of Y ({})'.format(y_name))
+        scm_ = scm_.fix_nondescendants(intv_dict_causes, obs)
         scm_.sample_context(scm.get_sample_size())
 
     # sample from intervened distribution for obs_sub
     values = scm_.compute(do=intv_dict)
-    return values[y_name].mean(), values[y_name].std()
+    perc_positive = values[y_name].mean()
+    meaningfulness_cost = max(perc_positive - gamma, 0)
+
+    ind = np.array(individual)
+    cost = np.dot(ind, costs)
+    res = cost + lbd * meaningfulness_cost
+    return res,
 
 
-def recourse(model, scm_, features, obs, costs, r_type):
+def individualized_post_recourse_predict(scm, obs_pre, obs_post, intv_dict, y_name):
+    """
+    TODO implement
+    """
+    scm_ = scm.abduct(obs_pre)
+    scm_int = scm.do(intv_dict)
+    obs_post_ = obs_post.copy()
+    ys = [0, 1]
+    for y in ys:
+        obs_post_[y_name] = y
+        scm_int_abd = scm_int.abd(obs_post_)
+
+        # extract abducted values u' as dictionary
+
+        # compute their joint probability as specified by scm_
+
+        # compute p(y|x_pre)
+
+        # take the product p(u=u')p(y|x_pre)
+
+    # divide the term for y = 1 by the sum of both
+
+    # return result
+    pass
+
+def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None, cleanup=True,
+             gamma=None, eta=None, thresh=None, lbd=1.0):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
@@ -78,7 +114,17 @@ def recourse(model, scm_, features, obs, costs, r_type):
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     toolbox.register("select", tools.selNSGA2)
-    toolbox.register("evaluate", evaluate, model, scm_, obs, features, costs, r_type)
+
+    if t_type == 'acceptance':
+        assert not model is None
+        assert not thresh is None
+        toolbox.register("evaluate", evaluate, model, thresh, scm_, obs, features, costs, lbd, r_type)
+    elif t_type == 'improvement':
+        assert not y_name is None
+        assert not gamma is None
+        toolbox.register("evaluate", evaluate_meaningful, y_name, gamma, scm_, obs, features, costs, lbd, r_type)
+    else:
+        raise NotImplementedError('only t_types acceptance or improvement are available')
 
     stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
     stats.register("avg", np.mean, axis=0)
@@ -92,10 +138,17 @@ def recourse(model, scm_, features, obs, costs, r_type):
                                   verbose=False)
 
     winner = list(hof)[0]
+
+    if cleanup:
+        del creator.FitnessMin
+        del creator.Individual
+
     return winner, pop, logbook
 
 
-def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2, r_type='individualized'):
+def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2,
+                        r_type='individualized', t_type='acceptance',
+                        gamma=None, thresh=None, lbd=1.0):
     predictions = model.predict(X)
     ixs_rejected = np.arange(len(predictions))[predictions == 0]
     ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)))
@@ -121,7 +174,8 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook = recourse(model, scm_, X.columns, obs, costs, r_type)
+        winner, pop, logbook = recourse(scm_, X.columns, obs, costs, r_type, t_type, model=model, y_name=y_name,
+                                        gamma=gamma, thresh=thresh, lbd=lbd)
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
         interventions.append(winner)
