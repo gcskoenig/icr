@@ -34,6 +34,17 @@ class DirectedAcyclicGraph:
         parents = tuple(self.DAG.predecessors(node_ind))
         return set([self.var_names[node] for node in parents])
 
+    def __remove_edge(self, u: str, v: str):
+        u_ind = search_nonsorted(self.var_names, [u])[0]
+        v_ind = search_nonsorted(self.var_names, [v])[0]
+        self.DAG.remove_edge(u_ind, v_ind)
+
+    def do(self, intv_vars):
+        for node in intv_vars:
+            pars = self.get_parents(node)
+            for par in pars:
+                self.__remove_edge(par, node)
+
     def get_children(self, node: str) -> set:
         node_ind = search_nonsorted(self.var_names, [node])[0]
         children = tuple(self.DAG.successors(node_ind))

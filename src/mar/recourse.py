@@ -1,6 +1,7 @@
 import random
 import math
 import numpy as np
+import pandas as pd
 
 import logging
 
@@ -71,30 +72,6 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, i
     return res,
 
 
-def individualized_post_recourse_predict(scm, obs_pre, obs_post, intv_dict, y_name):
-    """
-    TODO implement
-    """
-    scm_ = scm.abduct(obs_pre)
-    scm_int = scm.do(intv_dict)
-    obs_post_ = obs_post.copy()
-    ys = [0, 1]
-    for y in ys:
-        obs_post_[y_name] = y
-        scm_int_abd = scm_int.abd(obs_post_)
-
-        # extract abducted values u' as dictionary
-
-        # compute their joint probability as specified by scm_
-
-        # compute p(y|x_pre)
-
-        # take the product p(u=u')p(y|x_pre)
-
-    # divide the term for y = 1 by the sum of both
-
-    # return result
-    pass
 
 def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None, cleanup=True,
              gamma=None, eta=None, thresh=None, lbd=1.0):
@@ -188,4 +165,14 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
         X_new.iloc[ix, :] = sample[X.columns].to_numpy()
         y_new.iloc[ix] = sample[y_name]
 
-    return ixs_recourse, interventions, X_new, y_new
+    interventions = np.array(interventions)
+    df_res = pd.DataFrame(interventions, columns='int_' + X.columns)
+    df_res['ix'] = ixs_recourse
+    df_res.set_index('ix')
+    df_res = df_res.join(X_new)
+    df_res = df_res.join(y_new)
+    df_res = df_res.join(X, lsuffix='_post', rsuffix='_pre')
+    df_res = df_res.join(y, lsuffix='_post', rsuffix='_pre')
+    df_res['y_hat_pre'] = predictions[df_res.ix]
+
+    return df_res

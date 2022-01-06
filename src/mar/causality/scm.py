@@ -26,7 +26,7 @@ class StructuralCausalModel:
     tools for the computation of counterfactuals.
     """
 
-    def __init__(self, dag: DirectedAcyclicGraph):
+    def __init__(self, dag: DirectedAcyclicGraph, u_prefix='u_'):
         """
         Args:
             dag: DAG, defining SCM
@@ -35,6 +35,7 @@ class StructuralCausalModel:
         self.dag = dag
         self.topological_order = []
         self.INVERTIBLE = False
+        self.u_prefix = u_prefix
 
         # the model dictionary is an internal representation of the SCM. The keys depend on the specific implementation.
         self.model = {}
@@ -54,6 +55,15 @@ class StructuralCausalModel:
                 # 'noise_abducted': None  # deprecated functionality
             }
             self.topological_order.append(node)
+
+    def uname_to_name(self, u_name):
+        return u_name[len(self.u_prefix):]
+
+    def name_to_uname(self, name):
+        return self.u_prefix + name
+
+    def log_prob_u(self, u):
+        raise NotImplementedError('log_prob_u not Implemented for abstract SCM class')
 
     def clear_values(self):
         # remove all sampled values
@@ -100,18 +110,41 @@ class StructuralCausalModel:
         The noise variables are named u_[var_name].
         """
         arr = torch.stack([self.model[node]['noise_values'] for node in self.dag.var_names], dim=1).numpy()
-        df = pd.DataFrame(arr, columns=['u_' + var_name for var_name in self.dag.var_names])
+        df = pd.DataFrame(arr, columns=[self.name_to_uname(var_name) for var_name in self.dag.var_names])
         return df
 
-    def set_noise_values(self, dict):
+    def set_noise_values(self, dict, return_values=True):
         """
         Set the noise values from a dictionary like objects (such as pandas.DataFrame).
         Naming convention: noise variables are named u_[var_name]
         """
         for unode in dict.keys():
-            node = unode[2:]  # remove u_ from the name
-            self.model[node]['noise_distribution'] = torch.tensor(dict[unode])
-        return self.get_noise_values()
+            node = self.uname_to_name(unode)  # remove u_ from the name
+            value = dict[unode]
+            if not type(value) is torch.Tensor:
+                value = torch.tensor(value)
+            self.model[node]['noise_values'] = torch.reshape(value, (-1,))
+        if return_values:
+            return self.get_noise_values()
+
+    def get_noise_distributions(self, check_deterministic=False):
+        """
+        If check deterministic we check whether all noise distributions are torch.tensor values (static)
+        """
+        noises = {}
+        deterministic = True
+        for node in self.dag.var_names:
+            noise = self.model[node]['noise_distribution']
+            u_node = self.name_to_uname(node)
+            noises[u_node] = noise
+            if check_deterministic:
+                deterministic = deterministic and (type(noise) is torch.Tensor)
+
+        # raise error if not deterministic if check_eterministic
+        if check_deterministic and not deterministic:
+            raise RuntimeError('Noise terms are not deterministic')
+
+        return noises
 
     def get_markov_blanket(self, node: str) -> set:
         """
@@ -149,6 +182,7 @@ class StructuralCausalModel:
             scm_itv.remove_parents(node)
             scm_itv.model[node]['noise_distribution'] = torch.tensor(intervention_dict[node])
         scm_itv.clear_values()
+        scm_itv.dag.do(intervention_dict.keys())
         return scm_itv
 
     def fix_nondescendants(self, intervention_dict, obs):
@@ -237,7 +271,8 @@ class LinearGaussianNoiseSCM(StructuralCausalModel):
                  noise_std_dict={},
                  default_coeff=(0.0, 1.0),
                  default_noise_std_bounds=(0.0, 1.0),
-                 seed=None):
+                 seed=None,
+                 u_prefix='u_'):
         """
         Args:
             dag: DAG, defining SEM
@@ -246,7 +281,7 @@ class LinearGaussianNoiseSCM(StructuralCausalModel):
             default_noise_std_bounds: Default noise std, if not specified in noise_std_dict.
                 Sampled from U(default_noise_std_bounds[0], default_noise_std_bounds[1])
         """
-        super(LinearGaussianNoiseSCM, self).__init__(dag)
+        super(LinearGaussianNoiseSCM, self).__init__(dag, u_prefix=u_prefix)
 
         self.INVERTIBLE = True
 
@@ -347,8 +382,8 @@ class LinearGaussianNoiseSCM(StructuralCausalModel):
 
 class BinomialBinarySCM(StructuralCausalModel):
 
-    def __init__(self, dag, p_dict={}):
-        super(BinomialBinarySCM, self).__init__(dag)
+    def __init__(self, dag, p_dict={}, u_prefix='u_'):
+        super(BinomialBinarySCM, self).__init__(dag, u_prefix=u_prefix)
 
         self.INVERTIBLE = True
 
@@ -397,6 +432,79 @@ class BinomialBinarySCM(StructuralCausalModel):
                     linear_comb += torch.tensor(obs[par])
         return linear_comb
 
+    def log_prob_u(self, u):
+        """
+        For a dictionary-like object u we compute the joint probability
+        """
+        scm_ = self.copy()
+        scm_.clear_values()
+        scm_.set_noise_values(u, return_values=False)
+
+        log_p = 0
+        for u_nd in u.keys():
+            nd = self.uname_to_name(u_nd)
+            value = u[u_nd]
+            p_nd = None
+            if not type(value) is Tensor:
+                value = torch.tensor(value)
+            dist = scm_.model[nd]['noise_distribution']
+            if isinstance(dist, Distribution):
+                p_nd = dist.log_prob(value)
+            elif isinstance(dist, Tensor):
+                p_nd = torch.log(value == dist)
+            elif callable(dist):
+                # attention: we can only do this because the relationship is deterministic. cannot be
+                # easility transferred to situations with non-invertible structural equations.
+                dist_sample = dist(scm_)
+                p_nd = torch.log(value == dist_sample[0])
+            else:
+                raise RuntimeError('distribution type not understood: dist is {}'.format(dist))
+
+            log_p += p_nd
+        return log_p
+
+    def predict_log_prob(self, x_pre, y_name, y=1):
+        """
+        Function that predicts log probability of y given x^pre
+        p(y=1|x^pre)
+        """
+        scm_ = self.abduct(x_pre)
+        obs_full = x_pre.copy()
+        obs_full[y_name] = y
+        scm__ = self.abduct(obs_full)
+        u = scm__.get_noise_distributions(check_deterministic=True)
+        u_y_name = self.name_to_uname(y_name)
+        u_y = {u_y_name: u[u_y_name]}
+        log_p = scm_.log_prob_u(u_y)
+        return log_p
+
+    def predict_log_prob_individualized(self, obs_pre, obs_post, intv_dict, y_name, y=1):
+        """
+        Individualized post-recourse prediction
+        """
+        scm_int = self.do(intv_dict)
+        obs_post_ = obs_post.copy()
+        ys = [0, 1]
+
+        log_probs_a = {}
+        log_probs_b = {}
+
+        for y_tmp in ys:
+            obs_post_[y_name] = y_tmp
+            scm_int_abd = scm_int.abd(obs_post_)
+
+            # extract abducted values u' as dictionary
+            u = scm_int_abd.get_noise_distributions(check_deterministic=True)
+
+            # compute their joint probability as specified by scm_
+            log_probs_a[y_tmp] = scm_int_abd.log_prob_u(u)
+
+            # compute p(y|x_pre)
+            log_probs_b[y_tmp] = self.predict_log_prob(obs_pre, y_name, y=y_tmp)
+
+        denom = torch.log(sum([torch.exp(log_probs_a[y_tmp] + log_probs_b[y_tmp]) for y_tmp in ys]))
+        res = log_probs_a[y] - denom
+        return res
 
     def compute_node(self, node):
         """
