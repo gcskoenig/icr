@@ -2,6 +2,7 @@ import random
 import math
 import numpy as np
 import pandas as pd
+import torch
 
 import logging
 
@@ -23,6 +24,19 @@ def indvd_to_intrv(features, individual, obs):
         if individual[ii]:
             dict[features[ii]] = (obs[features[ii]] + individual[ii]) % 2
     return dict
+
+
+def compute_h_post_individualized(scm, X_pre, X_post, invs, y_name, y=1):
+    """
+    Computes the individualized post-recourse predictions (proababilities)
+    """
+    log_probs = np.zeros(invs.shape[0])
+    for ix in range(invs.shape[0]):
+        intv_dict = indvd_to_intrv(X_pre.columns, invs.iloc[ix, :], X_pre.iloc[0, :])
+        log_probs[ix] = torch.exp(scm.predict_log_prob_individualized(X_pre.iloc[ix, :], X_post.iloc[ix, :], intv_dict, y_name, y=y))
+    h_post_individualized = pd.DataFrame(log_probs, columns=['h_post_individualized'])
+    h_post_individualized.index = X_pre.index.copy()
+    return h_post_individualized
 
 
 def evaluate(model, thresh, scm, obs, features, costs, lbd, r_type, individual):
@@ -64,13 +78,12 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, i
     # sample from intervened distribution for obs_sub
     values = scm_.compute(do=intv_dict)
     perc_positive = values[y_name].mean()
-    meaningfulness_cost = max(perc_positive - gamma, 0)
+    meaningfulness_cost = perc_positive <= gamma
 
     ind = np.array(individual)
     cost = np.dot(ind, costs)
     res = cost + lbd * meaningfulness_cost
     return res,
-
 
 
 def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None, cleanup=True,
@@ -79,8 +92,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
-    CX_PROB = 0.2
-    MX_PROB = 0.5
+    CX_PROB = 0.3
+    MX_PROB = 0.05
     NGEN = 100
 
     toolbox = base.Toolbox()
@@ -109,9 +122,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    pop = toolbox.population(n=10)
-    hof = tools.HallOfFame(1)
-    pop, logbook = eaMuPlusLambda(pop, toolbox, 4, 20, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof,
+    pop = toolbox.population(n=30)
+    hof = tools.HallOfFame(4)
+    pop, logbook = eaMuPlusLambda(pop, toolbox, 10, 30, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof,
                                   verbose=False)
 
     winner = list(hof)[0]
@@ -125,10 +138,13 @@ def recourse(scm_, features, obs, costs, r_type, t_type, model=None, y_name=None
 
 def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2,
                         r_type='individualized', t_type='acceptance',
-                        gamma=None, thresh=None, lbd=1.0):
+                        gamma=0.7, thresh=0.5, lbd=1.0):
+    logging.debug('Determining rejected individuals and individuals determined to implement recourse...')
     predictions = model.predict(X)
     ixs_rejected = np.arange(len(predictions))[predictions == 0]
-    ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)))
+    ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)), replace=False)
+    logging.debug('Detected {} rejected and {} recourse seeking individuals...'.format(len(ixs_rejected),
+                                                                                       len(ixs_recourse)))
 
     X_new = X.copy()
     y_new = None
@@ -136,6 +152,7 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
         y_new = y.copy()
     interventions = []
 
+    logging.debug('Iterating through {} individuals to suggest recourse...'.format(len(ixs_recourse)))
     for ix in tqdm(ixs_recourse):
         obs = X.iloc[ix, :]
 
@@ -160,19 +177,53 @@ def recourse_population(scm, model, X, y, U, y_name, costs, proportion=0.5, nsam
         # compute the actual outcome for this observation
         scm_true = scm.copy()
         scm_true.set_noise_values(U.iloc[ix, :].to_dict())
-        scm_true.sample_context(size=1)
+        #scm_true.sample_context(size=1)
         sample = scm_true.compute(do=intervention)
         X_new.iloc[ix, :] = sample[X.columns].to_numpy()
         y_new.iloc[ix] = sample[y_name]
 
+    logging.debug('Collecting results...')
     interventions = np.array(interventions)
-    df_res = pd.DataFrame(interventions, columns='int_' + X.columns)
-    df_res['ix'] = ixs_recourse
-    df_res.set_index('ix')
-    df_res = df_res.join(X_new)
-    df_res = df_res.join(y_new)
-    df_res = df_res.join(X, lsuffix='_post', rsuffix='_pre')
-    df_res = df_res.join(y, lsuffix='_post', rsuffix='_pre')
-    df_res['y_hat_pre'] = predictions[df_res.ix]
+    interventions = pd.DataFrame(interventions, columns=X.columns)
+    interventions['ix'] = ixs_recourse
+    interventions.set_index('ix', inplace=True)
 
-    return df_res
+    X_pre = X.iloc[ixs_recourse, :]
+    y_pre = y.iloc[ixs_recourse]
+    X_post = X_new.iloc[ixs_recourse, :]
+    y_post = y_new.iloc[ixs_recourse]
+
+    logging.debug('Collecting pre- and post-recourse model predictions...')
+    y_hat_pre = pd.DataFrame(predictions[ixs_recourse], columns=['y_hat'])
+    h_post = model.predict_proba(X_post[X.columns])[:, model.classes_ == 1].flatten()
+    h_post = pd.DataFrame(h_post, columns=['h_post'])
+    h_post['h_post_individualized'] = np.nan
+    h_post.index = y_post.index.copy()
+
+    if r_type == 'individualized' and t_type == 'improvement':
+        logging.debug('Computing individualized post-recourse predictions...')
+        h_post_indiv = compute_h_post_individualized(scm, X_pre, X_post, interventions, y_name, y=1)
+        h_post['h_post_individualized'] = h_post_indiv['h_post_individualized']
+
+    for df in [X_post, y_post, interventions, X_pre, y_pre, y_hat_pre, h_post]:
+        df.index = ixs_recourse
+
+    logging.debug('Computing stats...')
+    stats = {}
+    ixs_rp = interventions[interventions.sum(axis=1) == 1].index # indexes for which recourse was performed
+    stats['recourse_seeking_ixs'] = interventions.index.copy()
+    stats['recourse_recommended_ixs'] = interventions.index.copy()
+    stats['perc_recomm_found'] = ixs_rp.shape[0] / X_post.shape[0]
+    stats['gamma'] = gamma
+    stats['gamma_obs'] = y_post[ixs_rp].mean()
+    stats['gamma_obs_pre'] = y_pre[ixs_rp].mean()
+    eta_obs = (h_post.loc[ixs_rp, :] >= thresh).mean()
+    stats['eta_obs'] = eta_obs['h_post']
+
+    if not h_post['h_post_individualized'].hasnans:
+        stats['eta_obs_individualized'] = eta_obs['h_post_individualized']
+    else:
+        stats['eta_obs_individualized'] = np.nan
+
+    logging.debug('Done.')
+    return X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, stats

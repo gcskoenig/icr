@@ -1,12 +1,12 @@
+import pandas as pd
+
 from mar.causality.scm import LinearGaussianNoiseSCM, BinomialBinarySCM
 from mar.causality.dags import DirectedAcyclicGraph
 import torch
 import logging
 from sklearn.linear_model import LogisticRegression
 
-import pandas as pd
-
-from mar.recourse import recourse_population, recourse
+from mar.recourse import recourse_population, compute_h_post_individualized
 
 import numpy as np
 
@@ -47,9 +47,9 @@ scm = BinomialBinarySCM(
 costs = np.array([0.5, 0.1])
 y_name = 'covid-free'
 
-# GENERATE THREE BATCHES OF DATA
+# GENERATE DATA AND PERFORM RECOURSE
 
-N = 10 ** 2
+N = 30
 
 noise = scm.sample_context(N)
 df = scm.compute()
@@ -57,13 +57,13 @@ df = scm.compute()
 X = df[df.columns[df.columns != y_name]]
 y = df[y_name]
 
-# FITTING MODEL 1 ON BATCH 0
-
-logging.info('Fitting a model on batch 0')
-
 model = LogisticRegression()
 model.fit(X, y)
 
-df = recourse_population(scm, model, X, y, noise, y_name, costs, proportion=1.0,
-                         r_type='individualized', t_type='improvement',
-                         gamma=0.3, lbd=10.0)
+X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, stats = recourse_population(scm, model, X, y, noise, y_name,
+                                                                                   costs, proportion=1.0,
+                                                                                   r_type='individualized',
+                                                                                   t_type='improvement',
+                                                                                   gamma=0.9, lbd=10.0,
+                                                                                   thresh=0.5)
+stats

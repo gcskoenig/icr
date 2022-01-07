@@ -51,7 +51,8 @@ class StructuralCausalModel:
                 'children': tuple(children),  # children variable names
                 'values': None,  # values for the variable
                 'noise_values': None,  # values for the noise
-                'noise_distribution': None  # distribution for the noise, may be torch.tensor if point-mass probability
+                'noise_distribution': None,  # distribution for the noise, may be torch.tensor if point-mass probability
+                'intervened': False # indicates whether a variables was intervened upon and must therefore be ignore during reconstruction
                 # 'noise_abducted': None  # deprecated functionality
             }
             self.topological_order.append(node)
@@ -127,18 +128,19 @@ class StructuralCausalModel:
         if return_values:
             return self.get_noise_values()
 
-    def get_noise_distributions(self, check_deterministic=False):
+    def get_noise_distributions(self, check_deterministic=False, return_intervened=False):
         """
         If check deterministic we check whether all noise distributions are torch.tensor values (static)
         """
         noises = {}
         deterministic = True
         for node in self.dag.var_names:
-            noise = self.model[node]['noise_distribution']
-            u_node = self.name_to_uname(node)
-            noises[u_node] = noise
-            if check_deterministic:
-                deterministic = deterministic and (type(noise) is torch.Tensor)
+            if not self.model[node]['intervened'] or return_intervened:
+                noise = self.model[node]['noise_distribution']
+                u_node = self.name_to_uname(node)
+                noises[u_node] = noise
+                if check_deterministic:
+                    deterministic = deterministic and (type(noise) is torch.Tensor)
 
         # raise error if not deterministic if check_eterministic
         if check_deterministic and not deterministic:
@@ -181,6 +183,7 @@ class StructuralCausalModel:
         for node in intervention_dict.keys():
             scm_itv.remove_parents(node)
             scm_itv.model[node]['noise_distribution'] = torch.tensor(intervention_dict[node])
+            scm_itv.model[node]['intervened'] = True
         scm_itv.clear_values()
         scm_itv.dag.do(intervention_dict.keys())
         return scm_itv
@@ -483,27 +486,24 @@ class BinomialBinarySCM(StructuralCausalModel):
         Individualized post-recourse prediction
         """
         scm_int = self.do(intv_dict)
+        scm_pre_abd = self.abduct(obs_pre)
         obs_post_ = obs_post.copy()
         ys = [0, 1]
 
-        log_probs_a = {}
-        log_probs_b = {}
+        log_probs = {}
 
         for y_tmp in ys:
             obs_post_[y_name] = y_tmp
-            scm_int_abd = scm_int.abd(obs_post_)
+            scm_int_abd = scm_int.abduct(obs_post_)
 
             # extract abducted values u' as dictionary
             u = scm_int_abd.get_noise_distributions(check_deterministic=True)
 
-            # compute their joint probability as specified by scm_
-            log_probs_a[y_tmp] = scm_int_abd.log_prob_u(u)
+            ## compute their joint probability as specified by scm_
+            log_probs[y_tmp] = scm_pre_abd.log_prob_u(u)
 
-            # compute p(y|x_pre)
-            log_probs_b[y_tmp] = self.predict_log_prob(obs_pre, y_name, y=y_tmp)
-
-        denom = torch.log(sum([torch.exp(log_probs_a[y_tmp] + log_probs_b[y_tmp]) for y_tmp in ys]))
-        res = log_probs_a[y] - denom
+        denom = torch.log(sum([torch.exp(log_probs[y_tmp]) for y_tmp in ys]))
+        res = log_probs[y] - denom
         return res
 
     def compute_node(self, node):
