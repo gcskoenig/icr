@@ -20,8 +20,8 @@ class DirectedAcyclicGraph:
         assert adjacency_matrix.shape[0] == adjacency_matrix.shape[1]
         assert adjacency_matrix.shape[0] == len(var_names)
 
-        self.adjacency_matrix = adjacency_matrix.astype(int)
-        self.DAG = nx.convert_matrix.from_numpy_matrix(self.adjacency_matrix, create_using=nx.DiGraph)
+        adjacency_matrix = adjacency_matrix.astype(int)
+        self.DAG = nx.convert_matrix.from_numpy_matrix(adjacency_matrix, create_using=nx.DiGraph)
         assert nx.algorithms.dag.is_directed_acyclic_graph(self.DAG)
 
         self.var_names = np.array(var_names, dtype=str)
@@ -113,3 +113,15 @@ class DirectedAcyclicGraph:
         adjacency_matrix = nx.linalg.graphmatrix.adjacency_matrix(G).todense().astype(int)
         var_names = [f'x{i}' for i in range(n)]
         return DirectedAcyclicGraph(adjacency_matrix, var_names)
+
+    def save(self, filepath):
+        arr = nx.convert_matrix.to_numpy_array(self.DAG)
+        np.save(filepath + '_dag.npy', arr)
+        np.save(filepath + '_var_names.npy', self.var_names)
+
+    @staticmethod
+    def load(filepath):
+        arr = np.load(filepath + '_dag.npy')
+        var_names = np.load(filepath + '_var_names.npy')
+        dag = DirectedAcyclicGraph(arr, var_names)
+        return dag

@@ -80,7 +80,7 @@ obs = batches[0][0].iloc[1, :]
 scm_abd = scm.abduct(obs)
 scm_abd.sample_context(1000)
 winner, log, population = recourse(scm_abd, batches[0][0].columns, obs, costs, 'individualized', 'improvement',
-                                   model=model, y_name=y_name, gamma=0.9)
+                                   predict_log_proba=model, y_name=y_name, gamma=0.9)
 
 ## b subpopulation-based
 
@@ -88,7 +88,7 @@ obs = batches[0][0].iloc[3, :]
 scm_ = scm.copy()
 scm_.sample_context(1000)
 winner, log, population = recourse(scm_, batches[0][0].columns, obs, costs, 'subpopulation', 'improvement',
-                                   model=model, y_name=y_name, gamma=0.9)
+                                   predict_log_proba=model, y_name=y_name, gamma=0.9)
 
 
 # EXPERIMENTS
@@ -120,10 +120,11 @@ for r_type in r_types:
         interventionss = [[]]
 
         for ii in [1, 2]:
-            ixs_recourse, interventions, X_new, y_new = recourse_population(scm, model, batches[ii][0], batches[ii][1],
-                                                                            batches[ii][2], y_name, costs, proportion=1.0,
-                                                                            r_type=r_type, t_type=t_type,
-                                                                            gamma=0.8, thresh=0.5)
+            ixs_recourse, interventions, X_new, y_new = recourse_population(scm, batches[ii][0], batches[ii][1],
+                                                                            batches[ii][2], y_name, costs,
+                                                                            proportion=1.0, r_type=r_type,
+                                                                            t_type=t_type, gamma=0.8, thresh=0.5,
+                                                                            model=model)
             batches_post.append((X_new, y_new))
             ixss_recourse.append(ixs_recourse)
             interventionss.append(interventions)

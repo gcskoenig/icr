@@ -1,11 +1,11 @@
 import copy
-
 import networkx as nx
 import pandas as pd
 import torch
 from torch import Tensor
 from torch.distributions import Normal, Distribution
 import numpy as np
+import json
 
 from mar.causality import DirectedAcyclicGraph
 from mar.estimation import GaussianConditionalEstimator
@@ -36,6 +36,7 @@ class StructuralCausalModel:
         self.topological_order = []
         self.INVERTIBLE = False
         self.u_prefix = u_prefix
+        self.predict_target = None
 
         # the model dictionary is an internal representation of the SCM. The keys depend on the specific implementation.
         self.model = {}
@@ -66,6 +67,12 @@ class StructuralCausalModel:
     def log_prob_u(self, u):
         raise NotImplementedError('log_prob_u not Implemented for abstract SCM class')
 
+    def set_prediction_target(self, y_name):
+        self.predict_target = y_name
+
+    def clear_prediction_target(self):
+        self.predict_target = None
+
     def clear_values(self):
         # remove all sampled values
         for node in self.dag.var_names:
@@ -77,9 +84,10 @@ class StructuralCausalModel:
         # remove child from parents
         for parent in self.model[node]['parents']:
             children = set(self.model[parent]['children'])
-            self.model[parent]['children'] = children.difference_update({node})
+            children.difference_update({node})
+            self.model[parent]['children'] = tuple(children)
         # remove parents from node
-        self.model[node]['parents'] = ([])
+        self.model[node]['parents'] = tuple([])
 
     def copy(self):
         """
@@ -236,7 +244,8 @@ class StructuralCausalModel:
         """
         scm_abd = self.copy()
         for node in self.topological_order:
-            scm_abd.model[node]['noise_distribution'] = self.abduct_node(node, obs, scm_partially_abducted=scm_abd, **kwargs)
+            scm_abd.model[node]['noise_distribution'] = self.abduct_node(node, obs, scm_partially_abducted=scm_abd,
+                                                                         **kwargs)
             scm_abd.model[node]['noise_values'] = None
             scm_abd.model[node]['values'] = None
         return scm_abd
@@ -399,6 +408,30 @@ class BinomialBinarySCM(StructuralCausalModel):
 
         self.p_dict = p_dict
 
+    def save(self, filepath):
+        self.dag.save(filepath)
+        p_dict = {}
+        for var_name in self.dag.var_names:
+            p_dict[var_name] = self.model[var_name]['noise_distribution'].probs.item()
+        scm_dict = {}
+        scm_dict['p_dict'] = p_dict
+        scm_dict['y_name'] = self.predict_target
+        with open(filepath + '_p_dict.json', 'w') as f:
+            json.dump(scm_dict, f)
+        # noise_vals = self.get_noise_values()
+        # noise_vals.to_csv(filepath + '_noise_vals.csv')
+
+    @staticmethod
+    def load(filepath):
+        dag = DirectedAcyclicGraph.load(filepath)
+        f = open(filepath + '_p_dict.json')
+        scm_dict = json.load(f)
+        f.close()
+        scm = BinomialBinarySCM(dag, scm_dict['p_dict'])
+        scm.set_prediction_target(scm_dict['y_name'])
+        # noise_vals = pd.read_csv(filepath + '_noise_vals.csv')
+        return scm
+
     def _get_pyro_model(self, target_node):
         """
         Returns pyro model where the target node is modeled as deterministic function of
@@ -466,7 +499,7 @@ class BinomialBinarySCM(StructuralCausalModel):
             log_p += p_nd
         return log_p
 
-    def predict_log_prob(self, x_pre, y_name, y=1):
+    def predict_log_prob_obs(self, x_pre, y_name, y=1):
         """
         Function that predicts log probability of y given x^pre
         p(y=1|x^pre)
@@ -481,7 +514,22 @@ class BinomialBinarySCM(StructuralCausalModel):
         log_p = scm_.log_prob_u(u_y)
         return log_p
 
-    def predict_log_prob_individualized(self, obs_pre, obs_post, intv_dict, y_name, y=1):
+    def predict_log_prob(self, X_pre, y_name=None):
+        """
+        expects vector input
+        returns 2d numpy array with order [0, 1]
+        """
+        if y_name is None:
+            assert not self.predict_target is None
+            y_name = self.predict_target
+        result = np.zeros((X_pre.shape[0], 2))
+        for ii in range(X_pre.shape[0]):
+            log_p_1 = self.predict_log_prob_obs(X_pre.iloc[ii, :], y_name, y=1)
+            result[ii, 1] = log_p_1.item()
+            result[ii, 0] = torch.log(1 - torch.exp(log_p_1)).item()
+        return result
+
+    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1):
         """
         Individualized post-recourse prediction
         """
@@ -609,36 +657,3 @@ class BinomialBinarySCM(StructuralCausalModel):
             logger.debug("probability {} was abducted for node {} and obs {}".format(p, node, obs))
 
         return dist.Binomial(probs=p)
-
-    # def _abduct_node_obs(self, node, obs, num_steps=5*10**4, **kwargs):
-    #
-    #     obs_dict = obs.to_dict()
-    #     for key in obs_dict.keys():
-    #         obs_dict[key] = torch.tensor(obs_dict[key])
-    #
-    #     pyro_model = self._get_pyro_model(node)
-    #     model_cond = pyro.condition(pyro_model, data=obs_dict)
-    #
-    #     par = 'p_' + node
-    #     noise_name = 'u_' + node
-    #
-    #     def guide():
-    #         p = pyro.param(par, torch.tensor(0.5))
-    #         nd = pyro.sample(noise_name, dist.Binomial(probs=p))
-    #         return nd
-    #
-    #     pyro.clear_param_store()
-    #     svi = pyro.infer.SVI(model=model_cond,
-    #                          guide=guide,
-    #                          optim=pyro.optim.Adam({"lr": 0.0001}),
-    #                          loss=pyro.infer.Trace_ELBO())
-    #
-    #     losses, p = [], []
-    #     N = num_steps
-    #
-    #     for jj in range(N):
-    #         losses.append(svi.step())
-    #         p.append(pyro.param(par).item())
-    #
-    #     d = dist.Binomial(probs=p[-1])
-    #     return d

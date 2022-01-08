@@ -60,10 +60,9 @@ y = df[y_name]
 model = LogisticRegression()
 model.fit(X, y)
 
-X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, stats = recourse_population(scm, model, X, y, noise, y_name,
-                                                                                   costs, proportion=1.0,
+X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, stats = recourse_population(scm, X, y, noise, y_name, costs,
+                                                                                   proportion=1.0,
                                                                                    r_type='individualized',
-                                                                                   t_type='improvement',
-                                                                                   gamma=0.9, lbd=10.0,
-                                                                                   thresh=0.5)
+                                                                                   t_type='improvement', gamma=0.9,
+                                                                                   thresh=0.5, lbd=10.0, model=model)
 stats
