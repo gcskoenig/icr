@@ -69,7 +69,7 @@ def generate_problem(N, p, min_in_degree, max_out_degree, max_uncertainty, seed=
 
 
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, seed, N,
-                   lbd, gamma, thresh, savepath):
+                   lbd, gamma, thresh, savepath, use_scm_pred=False):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -114,7 +114,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
 
     problem_setup = {'N': N, 'N_nodes': N_nodes, 'p': p, 'max_uncertainty': max_uncertainty,
                      'min_in_degree': min_in_degree,
-                     'max_out_degree': max_out_degree, 'seed': seed}
+                     'max_out_degree': max_out_degree, 'seed': seed,
+                     'use_scm_pred': use_scm_pred}
 
     logging.info('Storing all relevant data...')
     # problem setup
@@ -146,7 +147,9 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
         logging.info("combination: {} {}".format(r_type, t_type))
 
         # perform recourse on subpopulation
-        X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costs, stats = recourse_population(scm, X, y, noise,
+        X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costs, stats = recourse_population(scm, batches[1][0],
+                                                                                                  batches[1][1],
+                                                                                                  noise,
                                                                                                   y_name, costs,
                                                                                                   proportion=1.0,
                                                                                                   r_type=r_type,
@@ -155,7 +158,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
                                                                                                   eta=gamma,
                                                                                                   thresh=thresh,
                                                                                                   lbd=lbd,
-                                                                                                  model=model)
+                                                                                                  model=model,
+                                                                                                  use_scm_pred=use_scm_pred)
 
         logging.info('Saving results for {}_{}...'.format(t_type, r_type))
         # save results
@@ -221,4 +225,4 @@ if __name__ == '__main__':
         os.mkdir(it_path)
 
         run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.max_out_degree,
-                       args.seed, args.N, args.lbd, args.gamma, args.thresh, it_path)
+                       args.seed, args.N, args.lbd, args.gamma, args.thresh, it_path, use_scm_pred=False)

@@ -138,7 +138,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     pop = toolbox.population(n=30)
     hof = tools.HallOfFame(4)
     pop, logbook = eaMuPlusLambda(pop, toolbox, 10, 30, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof,
-                                  verbose=True)
+                                  verbose=False)
 
     winner = list(hof)[0]
 
