@@ -69,7 +69,7 @@ def generate_problem(N, p, min_in_degree, max_out_degree, max_uncertainty, seed=
 
 
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, seed, N,
-                   lbd, gamma, thresh, savepath, use_scm_pred=False):
+                   lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -119,17 +119,17 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
 
     logging.info('Storing all relevant data...')
     # problem setup
-    with open(savepath + '_problem_setup.json', 'w') as f:
+    with open(savepath + 'problem_setup.json', 'w') as f:
         json.dump(problem_setup, f)
     # model coefficients
-    np.save(savepath + '_model_coef.npy', np.array(model.coef_))
+    np.save(savepath + 'model_coef.npy', np.array(model.coef_))
     # scm
-    scm.save(savepath + '_scm')
+    scm.save(savepath + 'scm')
     # data
-    batches[0][0].to_csv(savepath + '_X_train.csv')
-    batches[0][1].to_csv(savepath + '_y_train.csv')
-    batches[1][0].to_csv(savepath + '_X_test.csv')
-    batches[1][1].to_csv(savepath + '_y_test.csv')
+    batches[0][0].to_csv(savepath + 'X_train.csv')
+    batches[0][1].to_csv(savepath + 'y_train.csv')
+    batches[1][0].to_csv(savepath + 'X_test.csv')
+    batches[1][1].to_csv(savepath + 'y_test.csv')
 
 
     # run all types of recourse on the setting
@@ -143,40 +143,52 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
         for t_type in t_types:
             all_combinations.append((r_type, t_type))
 
+
+
     for r_type, t_type in all_combinations:
         logging.info("combination: {} {}".format(r_type, t_type))
+        savepath_config_type = savepath_config + '{}-{}/'.format(t_type, r_type)
+        os.mkdir(savepath_config_type)
 
-        # perform recourse on subpopulation
-        X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costs, stats = recourse_population(scm, batches[1][0],
-                                                                                                  batches[1][1],
-                                                                                                  noise,
-                                                                                                  y_name, costs,
-                                                                                                  proportion=1.0,
-                                                                                                  r_type=r_type,
-                                                                                                  t_type=t_type,
-                                                                                                  gamma=gamma,
-                                                                                                  eta=gamma,
-                                                                                                  thresh=thresh,
-                                                                                                  lbd=lbd,
-                                                                                                  model=model,
-                                                                                                  use_scm_pred=use_scm_pred)
+        for ii in range(iterations):
+            it_path = savepath_config_type + '{}/'.format(ii)
+            os.mkdir(it_path)
 
-        logging.info('Saving results for {}_{}...'.format(t_type, r_type))
-        # save results
-        savepath_exp = savepath + '_{}_{}'.format(r_type, t_type)
-        X_pre.to_csv(savepath_exp + '_X_pre.csv')
-        y_pre.to_csv(savepath_exp + '_y_pre.csv')
-        y_hat_pre.to_csv(savepath_exp + '_y_hat_pre.csv')
-        invs.to_csv(savepath_exp + '_invs.csv')
-        X_post.to_csv(savepath_exp + '_X_post.csv')
-        y_post.to_csv(savepath_exp + '_y_post.csv')
-        h_post.to_csv(savepath_exp + '_h_post.csv')
-        costs.to_csv(savepath_exp + '_costs.csv')
+            # perform recourse on subpopulation
+            X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = recourse_population(scm, batches[1][0],
+                                                                                                       batches[1][1],
+                                                                                                       noise,
+                                                                                                       y_name, costs,
+                                                                                                       proportion=1.0,
+                                                                                                       r_type=r_type,
+                                                                                                       t_type=t_type,
+                                                                                                       gamma=gamma,
+                                                                                                       eta=gamma,
+                                                                                                       thresh=thresh,
+                                                                                                       lbd=lbd,
+                                                                                                       model=model,
+                                                                                                       use_scm_pred=use_scm_pred)
 
-        with open(savepath_exp + '_stats.json', 'w') as f:
-            json.dump(stats, f)
+            logging.info('Saving results for {}_{}...'.format(t_type, r_type))
+            # save results
+            savepath_exp = savepath + '{}_{}'.format(r_type, t_type)
+            X_pre.to_csv(savepath_exp + '_X_pre.csv')
+            y_pre.to_csv(savepath_exp + '_y_pre.csv')
+            y_hat_pre.to_csv(savepath_exp + '_y_hat_pre.csv')
+            invs.to_csv(savepath_exp + '_invs.csv')
+            X_post.to_csv(savepath_exp + '_X_post.csv')
+            y_post.to_csv(savepath_exp + '_y_post.csv')
+            h_post.to_csv(savepath_exp + '_h_post.csv')
+            costss.to_csv(savepath_exp + '_costss.csv')
 
-        logging.info('Done.')
+            try:
+                with open(savepath_exp + '_stats.json', 'w') as f:
+                    json.dump(stats, f)
+            except Exception as exc:
+                logging.warning('stats.json could not be saved.')
+                logging.info('Exception: {}'.format(exc))
+
+            logging.info('Done.')
 
 
 # run_experiment(30, 0.8, 0.2, 3, 1000, 42, 2500,
@@ -194,8 +206,8 @@ if __name__ == '__main__':
                         type=str)
     parser.add_argument("N_nodes", help="List with number of nodes to generate", type=int)
     parser.add_argument("N", help="Number of observations", type=int)
-    parser.add_argument("gamma", help="list of gammas for recourse", type=float)
-    parser.add_argument("thresh", help="list of threshs for prediction and recourse", type=float)
+    parser.add_argument("gamma", help="gammas for recourse", type=float)
+    parser.add_argument("thresh", help="threshs for prediction and recourse", type=float)
     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
 
     parser.add_argument("--lbd", help="lambda for optimization", default=10.0, type=float)
@@ -216,13 +228,18 @@ if __name__ == '__main__':
     # expects that we are in a directory with a subfolder called "experiments"
     # relative save paths
     config_id = random.randint(0, 1024)
-    config_folder = 'config_gamma{}_thresh{}_Nnodes{}_p{}_{}/'.format(args.gamma, args.thresh,
-                                                                      args.N_nodes, args.p, config_id)
-    os.mkdir(args.savepath + config_folder)
+    savepath_config = args.savepath + 'gamma_{}_M_{}_id_{}/'.format(args.gamma, args.N_nodes, config_id)
 
-    for ii in range(args.n_iterations):
-        it_path = args.savepath + config_folder + '{}/'.format(ii)
-        os.mkdir(it_path)
+    n_tries = 0
+    done = False
+    while n_tries < 5 and not done:
+        try:
+            n_tries += 1
+            os.mkdir(savepath_config)
+            done = True
+        except Exception as err:
+            logging.warning('Could not generate folder...{}'.format(savepath_config))
 
-        run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.max_out_degree,
-                       args.seed, args.N, args.lbd, args.gamma, args.thresh, it_path, use_scm_pred=False)
+    run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.max_out_degree,
+                   args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
+                   iterations=args.n_iterations, use_scm_pred=False)

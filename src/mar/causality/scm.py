@@ -416,10 +416,12 @@ class BinomialBinarySCM(StructuralCausalModel):
         scm_dict = {}
         scm_dict['p_dict'] = p_dict
         scm_dict['y_name'] = self.predict_target
-        with open(filepath + '_p_dict.json', 'w') as f:
-            json.dump(scm_dict, f)
-        # noise_vals = self.get_noise_values()
-        # noise_vals.to_csv(filepath + '_noise_vals.csv')
+        try:
+            with open(filepath + '_p_dict.json', 'w') as f:
+                json.dump(scm_dict, f)
+        except Exception as exc:
+            logging.warning('Could not save p_dict.json')
+            logging.info('Exception: {}'.format(exc))
 
     @staticmethod
     def load(filepath):

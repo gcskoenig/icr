@@ -254,20 +254,21 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     logging.debug('Computing stats...')
     stats = {}
     ixs_rp = interventions[interventions.sum(axis=1) == 1].index # indexes for which recourse was performed
-    stats['recourse_seeking_ixs'] = interventions.index.copy()
-    stats['recourse_recommended_ixs'] = interventions.index.copy()
-    stats['perc_recomm_found'] = ixs_rp.shape[0] / X_post.shape[0]
-    stats['gamma'] = gamma
-    stats['eta'] = eta
-    stats['gamma_obs'] = y_post[ixs_rp].mean()
-    stats['gamma_obs_pre'] = y_pre[ixs_rp].mean()
+    stats['recourse_seeking_ixs'] = list(interventions.index.copy())
+    stats['recourse_recommended_ixs'] = list(ixs_rp.copy())
+    stats['perc_recomm_found'] = float(ixs_rp.shape[0] / X_post.shape[0])
+    stats['gamma'] = float(gamma)
+    stats['eta'] = float(eta)
+    stats['gamma_obs'] = float(y_post[ixs_rp].mean())
+    stats['gamma_obs_pre'] = float(y_pre[ixs_rp].mean())
     eta_obs = (h_post.loc[ixs_rp, :] >= thresh).mean()
-    stats['eta_obs'] = eta_obs['h_post']
-    stats['costs'] = costs
-    stats['lbd'] = lbd
-    stats['thresh'] = thresh
-    stats['r_type'] = r_type
-    stats['t_type'] = t_type
+    stats['eta_obs'] = float(eta_obs['h_post'])
+    stats['eta_obs_individualized'] = float(eta_obs['h_post_individualized'])
+    stats['costs'] = list(costs)  # costs for the interventions (list with len(X.columns) indexes)
+    stats['lbd'] = float(lbd)
+    stats['thresh'] = float(thresh)
+    stats['r_type'] = str(r_type)
+    stats['t_type'] = str(t_type)
 
     if not h_post['h_post_individualized'].hasnans:
         stats['eta_obs_individualized'] = eta_obs['h_post_individualized']
