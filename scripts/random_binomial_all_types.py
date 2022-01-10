@@ -68,8 +68,15 @@ def generate_problem(N, p, min_in_degree, out_degree, max_uncertainty, seed=42):
     return scm_return, y_name
 
 
+def load_problem(path):
+    scm = BinomialBinarySCM.load(path)
+    y_name = scm.predict_target
+    return scm, y_name
+
+
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
-                   lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both'):
+                   lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
+                   scm_loadpath=None):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -79,14 +86,22 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         logging.info('Creation of directory %s successful' % savepath)
 
     logging.info('generating problem...')
-    # generate problem
-    scm, y_name = generate_problem(N_nodes, p, min_in_degree, out_degree, max_uncertainty, seed=seed)
+
+    # generate or load problem
+    scm, y_name, costs = None, None, None
+
+    if scm_loadpath is None:
+        scm, y_name = generate_problem(N_nodes, p, min_in_degree, out_degree, max_uncertainty, seed=seed)
+        costs = np.random.uniform(0, lbd / (N_nodes - 1), N_nodes - 1)
+    else:
+        scm, y_name = load_problem(scm_loadpath)
+        costs = np.load(scm_loadpath + 'costs.npy')
+
+
     noise = scm.sample_context(N)
     df = scm.compute()
     X = df[df.columns[df.columns != y_name]]
     y = df[y_name]
-
-    costs = np.random.uniform(0, lbd / (N_nodes - 1), N_nodes - 1)
 
     # split into batches
     n_batches = 2
@@ -115,7 +130,10 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     problem_setup = {'N': N, 'N_nodes': N_nodes, 'p': p, 'max_uncertainty': max_uncertainty,
                      'min_in_degree': min_in_degree,
                      'out_degree': out_degree, 'seed': seed,
-                     'use_scm_pred': use_scm_pred}
+                     'use_scm_pred': use_scm_pred,
+                     'gamma/eta': gamma,
+                     't_types': t_types,
+                     'costs': list(costs)}
 
     logging.info('Storing all relevant data...')
     # problem setup
@@ -135,8 +153,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     # run all types of recourse on the setting
     logging.info('Run all types of recourse...')
 
-    r_types = ['subpopulation', 'individualized']
-    t_options = ['acceptance', 'improvement']
+    r_types = ['individualized', 'subpopulation']
+    t_options = ['improvement', 'acceptance']
 
     if t_types == 'both':
         t_types = t_options
@@ -158,7 +176,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             os.mkdir(it_path)
 
             # perform recourse on subpopulation
-            result_tpl = recourse_population(scm, batches[1][0], batches[1][1], noise, y_name, costs,
+            result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
                                              proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred)
 
@@ -193,6 +211,7 @@ if __name__ == '__main__':
     parser.add_argument("--seed", help="seed", default=42, type=int)
     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
                         default="both", type=str)
+    parser.add_argument("--scm_loadpath", help="loadpath for scm to be used", default=None, type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
 
@@ -219,4 +238,5 @@ if __name__ == '__main__':
 
     run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.out_degree,
                    args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
-                   iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type)
+                   iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
+                   scm_loadpath=args.scm_loadpath)

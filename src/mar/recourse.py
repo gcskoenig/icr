@@ -207,6 +207,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size)
+
         intervention = indvd_to_intrv(X.columns, winner, obs)
 
         interventions.append(winner)
@@ -277,11 +278,12 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
         stats['eta_obs_individualized'] = np.nan
 
     logging.debug('Done.')
-    return X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats
+    return U, X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats
 
 
 def save_recourse_result(savepath_exp, result_tupl):
-    X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = result_tupl
+    U, X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = result_tupl
+    U.to_csv(savepath_exp + 'U.csv')
     X_pre.to_csv(savepath_exp + 'X_pre.csv')
     y_pre.to_csv(savepath_exp + 'y_pre.csv')
     y_hat_pre.to_csv(savepath_exp + 'y_hat_pre.csv')
@@ -292,7 +294,7 @@ def save_recourse_result(savepath_exp, result_tupl):
     costss.to_csv(savepath_exp + 'costss.csv')
 
     try:
-        with open(savepath_exp + '_stats.json', 'w') as f:
+        with open(savepath_exp + 'stats.json', 'w') as f:
             json.dump(stats, f)
     except Exception as exc:
         logging.warning('stats.json could not be saved.')

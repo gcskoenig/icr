@@ -1,6 +1,7 @@
 import logging
 import copy
 import os
+import random
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, accuracy_score
@@ -18,11 +19,19 @@ import pandas as pd
 
 logging.getLogger().setLevel(logging.INFO)
 
-savepath = "../experiments/robustness/"
+savepath = "../../experiments/robustness/"
+
+run_id = random.randint(0, 2**8)
+
+
 
 gamma = 0.7
 eta = 0.7
 lbd = 4
+
+savepath = savepath + 'gamma{}-eta{}-run_id_{}-/'.format(gamma, eta, run_id)
+
+os.mkdir(savepath)
 
 # DEFINE DATA GENERATING MECHANISM
 
@@ -49,7 +58,7 @@ y_name = 'covid-free'
 
 # GENERATE THREE BATCHES OF DATA
 
-N = 10**4 * 3
+N = 10**3 * 5
 
 noise = scm.sample_context(N)
 df = scm.compute()
@@ -128,7 +137,7 @@ for r_type in r_types:
                                       model=model,
                                       use_scm_pred=False)
             result_tuples.append(tpl)
-            X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats = tpl
+            U, X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats = tpl
             logging.info(stats)
 
         save_recourse_result(savepath_run + 'batch1_', result_tuples[0])
@@ -144,7 +153,7 @@ for r_type in r_types:
         batches_post = copy.deepcopy(batches)
 
         for ii in [1, 2]:
-            X_post, y_post = result_tuples[ii - 1][4], result_tuples[ii - 1][5]
+            X_post, y_post = result_tuples[ii - 1][6], result_tuples[ii - 1][6]
             batches_post[ii][0].iloc[X_post.index, :] = X_post
             batches_post[ii][1].iloc[y_post.index] = y_post
 
@@ -158,8 +167,8 @@ for r_type in r_types:
 
         logging.info('The refit on pre- and post-recourse data has coefficients {}'.format(model2.coef_))
 
-        X_post_2, y_post_2 = result_tuples[1][4], result_tuples[1][5]
-        invs = result_tuples[1][3]
+        X_post_2, y_post_2 = result_tuples[1][5], result_tuples[1][6]
+        invs = result_tuples[1][4]
         recourse_performed = invs[invs.sum(axis=1) >= 1].index
         X_post_2 = X_post_2.loc[recourse_performed, :]
         y_post_2 = y_post_2.loc[recourse_performed]
