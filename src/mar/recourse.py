@@ -3,6 +3,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
+import json
 
 import logging
 
@@ -54,11 +55,11 @@ def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_t
     # sample from intervened distribution for obs_sub
     values = scm_.compute(do=intv_dict)
     predictions = predict_log_proba(values[features])[:, 1]
-    expected_below_thresh = np.mean(np.exp(predictions)) < thresh
+    expected_above_thresh = np.mean(np.exp(predictions) >= thresh)
 
     ind = np.array(individual)
     cost = np.dot(ind, costs) # intervention cost
-    acceptance_cost = expected_below_thresh < eta
+    acceptance_cost = expected_above_thresh < eta
     res = cost + lbd * acceptance_cost
 
     if return_split_cost:
@@ -253,7 +254,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Computing stats...')
     stats = {}
-    ixs_rp = interventions[interventions.sum(axis=1) == 1].index # indexes for which recourse was performed
+    ixs_rp = interventions[interventions.sum(axis=1) >= 1].index # indexes for which recourse was performed
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())
     stats['recourse_recommended_ixs'] = list(ixs_rp.copy())
     stats['perc_recomm_found'] = float(ixs_rp.shape[0] / X_post.shape[0])
@@ -277,3 +278,22 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Done.')
     return X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats
+
+
+def save_recourse_result(savepath_exp, result_tupl):
+    X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = result_tupl
+    X_pre.to_csv(savepath_exp + 'X_pre.csv')
+    y_pre.to_csv(savepath_exp + 'y_pre.csv')
+    y_hat_pre.to_csv(savepath_exp + 'y_hat_pre.csv')
+    invs.to_csv(savepath_exp + 'invs.csv')
+    X_post.to_csv(savepath_exp + 'X_post.csv')
+    y_post.to_csv(savepath_exp + 'y_post.csv')
+    h_post.to_csv(savepath_exp + 'h_post.csv')
+    costss.to_csv(savepath_exp + 'costss.csv')
+
+    try:
+        with open(savepath_exp + '_stats.json', 'w') as f:
+            json.dump(stats, f)
+    except Exception as exc:
+        logging.warning('stats.json could not be saved.')
+        logging.info('Exception: {}'.format(exc))

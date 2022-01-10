@@ -36,14 +36,14 @@ import argparse
 
 from mar.causality.dags import DirectedAcyclicGraph
 from mar.causality.scm import BinomialBinarySCM
-from mar.recourse import recourse_population
+from mar.recourse import recourse_population, save_recourse_result
 
 
 logging.getLogger().setLevel(20)
 
 # script functions
 
-def generate_problem(N, p, min_in_degree, max_out_degree, max_uncertainty, seed=42):
+def generate_problem(N, p, min_in_degree, out_degree, max_uncertainty, seed=42):
     random.seed(seed)
     scm_return = None
     y_name = None
@@ -56,8 +56,8 @@ def generate_problem(N, p, min_in_degree, max_out_degree, max_uncertainty, seed=
             thresh = random.uniform(0, max_uncertainty)
             below_thresh = scm.model[node]['noise_distribution'].probs.item() <= thresh
             has_min_in_degree = len(scm.model[node]['parents']) >= min_in_degree
-            has_max_out_degree = len(scm.model[node]['children']) <= max_out_degree
-            degree_ok = has_min_in_degree and has_max_out_degree
+            has_out_degree = len(scm.model[node]['children']) == out_degree
+            degree_ok = has_min_in_degree and has_out_degree
             if below_thresh and degree_ok:
                 y_name = node
                 scm_return = scm
@@ -68,8 +68,8 @@ def generate_problem(N, p, min_in_degree, max_out_degree, max_uncertainty, seed=
     return scm_return, y_name
 
 
-def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, seed, N,
-                   lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5):
+def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
+                   lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both'):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -80,7 +80,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
 
     logging.info('generating problem...')
     # generate problem
-    scm, y_name = generate_problem(N_nodes, p, min_in_degree, max_out_degree, max_uncertainty, seed=seed)
+    scm, y_name = generate_problem(N_nodes, p, min_in_degree, out_degree, max_uncertainty, seed=seed)
     noise = scm.sample_context(N)
     df = scm.compute()
     X = df[df.columns[df.columns != y_name]]
@@ -114,7 +114,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
 
     problem_setup = {'N': N, 'N_nodes': N_nodes, 'p': p, 'max_uncertainty': max_uncertainty,
                      'min_in_degree': min_in_degree,
-                     'max_out_degree': max_out_degree, 'seed': seed,
+                     'out_degree': out_degree, 'seed': seed,
                      'use_scm_pred': use_scm_pred}
 
     logging.info('Storing all relevant data...')
@@ -136,14 +136,17 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
     logging.info('Run all types of recourse...')
 
     r_types = ['subpopulation', 'individualized']
-    t_types = ['acceptance', 'improvement']
+    t_options = ['acceptance', 'improvement']
+
+    if t_types == 'both':
+        t_types = t_options
+    elif t_types in t_options:
+        t_types = [t_types]
 
     all_combinations = []
     for r_type in r_types:
         for t_type in t_types:
             all_combinations.append((r_type, t_type))
-
-
 
     for r_type, t_type in all_combinations:
         logging.info("combination: {} {}".format(r_type, t_type))
@@ -155,44 +158,16 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, max_out_degree, s
             os.mkdir(it_path)
 
             # perform recourse on subpopulation
-            X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = recourse_population(scm, batches[1][0],
-                                                                                                       batches[1][1],
-                                                                                                       noise,
-                                                                                                       y_name, costs,
-                                                                                                       proportion=1.0,
-                                                                                                       r_type=r_type,
-                                                                                                       t_type=t_type,
-                                                                                                       gamma=gamma,
-                                                                                                       eta=gamma,
-                                                                                                       thresh=thresh,
-                                                                                                       lbd=lbd,
-                                                                                                       model=model,
-                                                                                                       use_scm_pred=use_scm_pred)
+            result_tpl = recourse_population(scm, batches[1][0], batches[1][1], noise, y_name, costs,
+                                             proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                             thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred)
 
-            logging.info('Saving results for {}_{}...'.format(t_type, r_type))
             # save results
-            savepath_exp = savepath + '{}_{}'.format(r_type, t_type)
-            X_pre.to_csv(savepath_exp + '_X_pre.csv')
-            y_pre.to_csv(savepath_exp + '_y_pre.csv')
-            y_hat_pre.to_csv(savepath_exp + '_y_hat_pre.csv')
-            invs.to_csv(savepath_exp + '_invs.csv')
-            X_post.to_csv(savepath_exp + '_X_post.csv')
-            y_post.to_csv(savepath_exp + '_y_post.csv')
-            h_post.to_csv(savepath_exp + '_h_post.csv')
-            costss.to_csv(savepath_exp + '_costss.csv')
-
-            try:
-                with open(savepath_exp + '_stats.json', 'w') as f:
-                    json.dump(stats, f)
-            except Exception as exc:
-                logging.warning('stats.json could not be saved.')
-                logging.info('Exception: {}'.format(exc))
-
+            logging.info('Saving results for {}_{}...'.format(t_type, r_type))
+            savepath_exp = it_path
+            save_recourse_result(savepath_exp, result_tpl)
             logging.info('Done.')
 
-
-# run_experiment(30, 0.8, 0.2, 3, 1000, 42, 2500,
-#                10, 0.9, 0.5, '../experiments/random_all_types/')
 
 if __name__ == '__main__':
     # parsing command line arguments
@@ -212,10 +187,12 @@ if __name__ == '__main__':
 
     parser.add_argument("--lbd", help="lambda for optimization", default=10.0, type=float)
     parser.add_argument("--p", help="List with edge probabilities to generate", default=0.8, type=float)
-    parser.add_argument("--max_uncertainty", help="Maximum p for y node", default=0.5, type=float)
+    parser.add_argument("--max_uncertainty", help="Maximum p for y node", default=0.3, type=float)
     parser.add_argument("--min_in_degree", help="minium in-degree for y_node", default=3, type=int)
-    parser.add_argument("--max_out_degree", help="maximum out-degree for y_node", default=1000, type=int)
+    parser.add_argument("--out_degree", help="maximum out-degree for y_node", default=1, type=int)
     parser.add_argument("--seed", help="seed", default=42, type=int)
+    parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
+                        default="both", type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
 
@@ -228,7 +205,7 @@ if __name__ == '__main__':
     # expects that we are in a directory with a subfolder called "experiments"
     # relative save paths
     config_id = random.randint(0, 1024)
-    savepath_config = args.savepath + 'gamma_{}_M_{}_id_{}/'.format(args.gamma, args.N_nodes, config_id)
+    savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N, config_id)
 
     n_tries = 0
     done = False
@@ -240,6 +217,6 @@ if __name__ == '__main__':
         except Exception as err:
             logging.warning('Could not generate folder...{}'.format(savepath_config))
 
-    run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.max_out_degree,
+    run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.out_degree,
                    args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
-                   iterations=args.n_iterations, use_scm_pred=False)
+                   iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type)
