@@ -45,3 +45,44 @@ try:
     np.save(savepath + scm_dir + 'costs.npy', costs)
 except Exception as exc:
     logging.info(exc)
+
+
+
+# ex2
+
+# DEFINE DATA GENERATING MECHANISM
+
+scm_dir = 'example2/'
+
+try:
+    os.mkdir(savepath + scm_dir)
+except FileExistsError as err:
+    logging.info('Folder already existed:' + savepath + scm_dir)
+except Exception as err:
+    raise err
+
+sigma_high = torch.tensor(0.5)
+sigma_medium = torch.tensor(0.09)
+sigma_low = torch.tensor(0.01)
+
+scm = BinomialBinarySCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 1, 0, 0,],
+                                   [0, 0, 1, 1],
+                                   [0, 0, 0, 0],
+                                   [0, 0, 0, 0]]),
+        var_names=['vaccinated', 'covid-free', 'symptom-free', 'pcr-negative']
+    ),
+    p_dict={'vaccinated': sigma_high, 'covid-free': sigma_medium, 'symptom-free': sigma_medium,
+            'pcr-negative': sigma_low}
+)
+
+costs = np.array([1.0, 0.1, 0.9])
+y_name = 'covid-free'
+scm.set_prediction_target(y_name)
+
+try:
+    scm.save(savepath + scm_dir)
+    np.save(savepath + scm_dir + 'costs.npy', costs)
+except Exception as exc:
+    logging.info(exc)
