@@ -19,11 +19,25 @@ logger = logging.getLogger(__name__)
 
 # RECOURSE FUNCTIONS
 
-def indvd_to_intrv(features, individual, obs):
+def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
+    """
+    If causes_of is None, then all interventions are added to the dictinoary.
+    If it is a specific node, then only causes of that node are added.
+    """
     dict = {}
+
+    # build causes set
+    causes = None
+    if causes_of is None:
+        causes = set(features)
+    else:
+        causes = scm.dag.get_ancestors_node(causes_of)
+
+    # iterate over variables to add causes
     for ii in range(len(features)):
-        if individual[ii]:
-            dict[features[ii]] = (obs[features[ii]] + individual[ii]) % 2
+        var_name = features[ii]
+        if individual[ii] and (var_name in causes):
+            dict[var_name] = (obs[var_name] + individual[ii]) % 2
     return dict
 
 
@@ -33,7 +47,7 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, y_name, y=1):
     """
     log_probs = np.zeros(invs.shape[0])
     for ix in range(invs.shape[0]):
-        intv_dict = indvd_to_intrv(X_pre.columns, invs.iloc[ix, :], X_pre.iloc[0, :])
+        intv_dict = indvd_to_intrv(scm, X_pre.columns, invs.iloc[ix, :], X_pre.iloc[0, :])
         log_probs[ix] = torch.exp(scm.predict_log_prob_individualized_obs(X_pre.iloc[ix, :], X_post.iloc[ix, :],
                                                                           intv_dict, y_name, y=y))
     h_post_individualized = pd.DataFrame(log_probs, columns=['h_post_individualized'])
@@ -43,7 +57,7 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, y_name, y=1):
 
 def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_type, subpopulation_size, individual,
              return_split_cost=False):
-    intv_dict = indvd_to_intrv(features, individual, obs)
+    intv_dict = indvd_to_intrv(scm, features, individual, obs)
 
     scm_ = scm.copy()
 
@@ -72,7 +86,7 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
                         return_split_cost=False):
     # WARNING: for individualized recourse we expect the scm to be abducted already
 
-    intv_dict = indvd_to_intrv(features, individual, obs)
+    intv_dict = indvd_to_intrv(scm, features, individual, obs)
     scm_ = scm.copy()
 
     # for subpopulation-based recourse at this point nondescendants are fixed
@@ -84,9 +98,15 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
         scm_ = scm_.fix_nondescendants(intv_dict_causes, obs)
         scm_.sample_context(subpopulation_size)
 
-    # sample from intervened distribution for obs_sub
-    values = scm_.compute(do=intv_dict)
-    perc_positive = values[y_name].mean()
+    perc_positive = None
+    if r_type == 'subpopulation' and len(intv_dict_causes.keys()) == 0:
+        # use normal prediction to also incorporate information from effects
+        perc_positive = torch.exp(scm.predict_log_prob_obs(obs, y_name, y=1)).item()
+    else:
+        # sample from intervened distribution for obs_sub
+        values = scm_.compute(do=intv_dict)
+        perc_positive = values[y_name].mean()
+
     meaningfulness_cost = perc_positive < gamma
 
     ind = np.array(individual)
@@ -208,7 +228,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size)
 
-        intervention = indvd_to_intrv(X.columns, winner, obs)
+        intervention = indvd_to_intrv(scm, X.columns, winner, obs)
 
         interventions.append(winner)
         goal_costs.append(goal_cost)
