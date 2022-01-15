@@ -86,3 +86,91 @@ try:
     np.save(savepath + scm_dir + 'costs.npy', costs)
 except Exception as exc:
     logging.info(exc)
+
+
+# ex 3
+
+# DEFINE DATA GENERATING MECHANISM
+
+scm_dir = 'example3/'
+
+try:
+    os.mkdir(savepath + scm_dir)
+except FileExistsError as err:
+    logging.info('Folder already existed:' + savepath + scm_dir)
+except Exception as err:
+    raise err
+
+sigma_high = torch.tensor(0.5)
+sigma_medium = torch.tensor(0.09)
+sigma_low = torch.tensor(0.01)
+
+scm = BinomialBinarySCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 1, 1, 0, 0, 0, 0],
+                                   [0, 0, 1, 1, 1, 0, 0],
+                                   [0, 0, 0, 1, 0, 0, 1],
+                                   [0, 0, 0, 0, 1, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 0]]),
+        var_names=['x0', 'x1', 'x2', 'y', 'x3', 'x4', 'x5']
+    ),
+    p_dict={'x0': sigma_medium, 'x1': sigma_medium, 'x2': sigma_medium, 'x3': sigma_medium, 'x4': sigma_medium,
+            'x5': sigma_medium, 'y': sigma_medium,}
+)
+
+costs = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+y_name = 'y'
+scm.set_prediction_target(y_name)
+
+try:
+    scm.save(savepath + scm_dir)
+    np.save(savepath + scm_dir + 'costs.npy', costs)
+except Exception as exc:
+    logging.info(exc)
+
+
+
+
+# ex 4
+
+# DEFINE DATA GENERATING MECHANISM
+
+scm_dir = 'example4/'
+
+try:
+    os.mkdir(savepath + scm_dir)
+except FileExistsError as err:
+    logging.info('Folder already existed:' + savepath + scm_dir)
+except Exception as err:
+    raise err
+
+sigma_high = torch.tensor(0.5)
+sigma_medium = torch.tensor(0.09)
+sigma_low = torch.tensor(0.04)
+
+scm = BinomialBinarySCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 1, 1, 0, 0, 0, 0],
+                                   [0, 0, 1, 1, 1, 0, 0],
+                                   [0, 0, 0, 1, 0, 0, 1],
+                                   [0, 0, 0, 0, 1, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 0]]),
+        var_names=['x0', 'x1', 'x2', 'y', 'x3', 'x4', 'x5']
+    ),
+    p_dict={'x0': sigma_high, 'x1': sigma_high, 'x2': sigma_high, 'x3': sigma_low, 'x4': sigma_low,
+            'x5': sigma_low, 'y': sigma_medium,}
+)
+
+costs = np.array([1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+y_name = 'y'
+scm.set_prediction_target(y_name)
+
+try:
+    scm.save(savepath + scm_dir)
+    np.save(savepath + scm_dir + 'costs.npy', costs)
+except Exception as exc:
+    logging.info(exc)

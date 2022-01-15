@@ -41,7 +41,7 @@ def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     return dict
 
 
-def compute_h_post_individualized(scm, X_pre, X_post, invs, y_name, y=1):
+def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):
     """
     Computes the individualized post-recourse predictions (proababilities)
     """
@@ -119,14 +119,17 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
 
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
-             eta=None, thresh=None, lbd=1.0, subpopulation_size=100):
+             eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
+
     CX_PROB = 0.3
     MX_PROB = 0.05
     NGEN = 100
+
+
 
     toolbox = base.Toolbox()
     toolbox.register("intervene", random.randint, 0, 1)
@@ -156,10 +159,10 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    pop = toolbox.population(n=30)
-    hof = tools.HallOfFame(4)
-    pop, logbook = eaMuPlusLambda(pop, toolbox, 10, 30, CX_PROB, MX_PROB, NGEN, stats=stats, halloffame=hof,
-                                  verbose=False)
+    pop = toolbox.population(n=len(features) * 10)
+    hof = tools.HallOfFame(len(features))
+    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE * 5, IND_SIZE * 10, CX_PROB, MX_PROB, NGEN,
+                                  stats=stats, halloffame=hof, verbose=False)
 
     winner = list(hof)[0]
 
@@ -179,7 +182,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2, r_type='individualized',
-                        t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=100,
+                        t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
                         model=None, use_scm_pred=False):
     assert not (model is None and not use_scm_pred)
 
@@ -197,6 +200,14 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)), replace=False)
     logging.debug('Detected {} rejected and {} recourse seeking individuals...'.format(len(ixs_rejected),
                                                                                        len(ixs_recourse)))
+
+    intv_features = X.columns
+    if t_type == 'improvement':
+        causes_dag = list(scm.dag.get_ancestors_node(y_name))
+        causes = [nd for nd in intv_features if nd in causes_dag]  # to make sure the ordering is as desired
+        ixs_causes = np.array([np.arange(len(intv_features))[cause == intv_features][0] for cause in causes])
+        costs = costs[ixs_causes]
+        intv_features = causes
 
     X_new = X.copy()
     y_new = None
@@ -222,13 +233,13 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, X.columns, obs, costs, r_type, t_type,
+        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
                                                               predict_log_proba=predict_log_proba, y_name=y_name,
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size)
 
-        intervention = indvd_to_intrv(scm, X.columns, winner, obs)
+        intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
         interventions.append(winner)
         goal_costs.append(goal_cost)
@@ -244,7 +255,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Collecting results...')
     interventions = np.array(interventions)
-    interventions = pd.DataFrame(interventions, columns=X.columns)
+    interventions = pd.DataFrame(interventions, columns=intv_features)
     interventions['ix'] = ixs_recourse
     interventions.set_index('ix', inplace=True)
 
@@ -267,7 +278,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     if r_type == 'individualized' and t_type == 'improvement':
         logging.debug('Computing individualized post-recourse predictions...')
-        h_post_indiv = compute_h_post_individualized(scm, X_pre, X_post, interventions, y_name, y=1)
+        h_post_indiv = compute_h_post_individualized(scm, X_pre, X_post, interventions, intv_features, y_name, y=1)
         h_post['h_post_individualized'] = h_post_indiv['h_post_individualized']
 
     for df in [X_post, y_post, interventions, X_pre, y_pre, y_hat_pre, h_post]:
@@ -285,7 +296,6 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     stats['gamma_obs_pre'] = float(y_pre[ixs_rp].mean())
     eta_obs = (h_post.loc[ixs_rp, :] >= thresh).mean()
     stats['eta_obs'] = float(eta_obs['h_post'])
-    stats['eta_obs_individualized'] = float(eta_obs['h_post_individualized'])
     stats['costs'] = list(costs)  # costs for the interventions (list with len(X.columns) indexes)
     stats['lbd'] = float(lbd)
     stats['thresh'] = float(thresh)
