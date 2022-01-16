@@ -57,7 +57,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
 
     # EXPERIMENTS
 
-    r_types = ['subpopulation', 'individualized']
+    r_types = ['individualized', 'improvement']
     t_types = ['improvement', 'acceptance']
 
 
