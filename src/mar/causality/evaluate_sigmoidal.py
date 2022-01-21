@@ -7,10 +7,6 @@ savepath = 'scms/'
 
 # ex 5
 
-# DEFINE DATA GENERATING MECHANISM
-
-scm_dir = 'example5/'
-
 # try:
 #     os.mkdir(savepath + scm_dir)
 # except FileExistsError as err:
@@ -44,7 +40,7 @@ costs = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
 y_name = 'y'
 scm.set_prediction_target(y_name)
 
-scm.sample_context(100)
+context = scm.sample_context(100)
 # scm.compute_node('y')
 data = scm.compute()
 
@@ -52,10 +48,23 @@ obs = data.iloc[0, :]
 obs = obs.loc[obs.index != 'y']
 
 scm_abd = scm.abduct(obs)
-smpl = scm_abd.sample_context(100)
+smpl = scm_abd.sample_context(1000)
 smpl_data = scm_abd.compute()
 
+# hand-engineer the intervention
 
+scm_abd.compute(do={'x1': 1.0}).describe()['y']
+
+scm_true = scm.copy()
+scm_true.set_noise_values(smpl.iloc[0, :].to_dict())
+scm_true.compute(do={'x1': 1.0}).describe()['y']
+
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+sns.distplot(smpl['u_y'])
+plt.show()
 
 from mar.backend.dist import TransformedUniform
 

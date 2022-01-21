@@ -694,7 +694,7 @@ class SigmoidBinarySCM(BinomialBinarySCM):
                         linear_comb += self.model[par]['values'] - 0.5
                     else:
                         linear_comb += torch.tensor(obs[par]) - 0.5
-            return linear_comb * 4
+            return linear_comb * 2
         else:
             return super()._linear_comb_parents(node, obs=obs)
 

@@ -181,7 +181,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     return winner, pop, logbook, goal_cost, intv_cost
 
 
-def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2, r_type='individualized',
+def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
                         model=None, use_scm_pred=False, predict_individualized=False):
     assert not (model is None and not use_scm_pred)
@@ -247,7 +247,8 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute the actual outcome for this observation
         scm_true = scm.copy()
-        scm_true.set_noise_values(U.iloc[ix, :].to_dict())
+        u_tmp = U.iloc[ix, :].to_dict()
+        scm_true.set_noise_values(u_tmp)
         #scm_true.sample_context(size=1)
         sample = scm_true.compute(do=intervention)
         X_new.iloc[ix, :] = sample[X.columns].to_numpy()

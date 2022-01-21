@@ -35,7 +35,7 @@ import os
 import argparse
 
 from mar.causality.dags import DirectedAcyclicGraph
-from mar.causality.scm import BinomialBinarySCM
+from mar.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
 from mar.recourse import recourse_population, save_recourse_result
 
 
@@ -68,15 +68,19 @@ def generate_problem(N, p, min_in_degree, out_degree, max_uncertainty, seed=42):
     return scm_return, y_name
 
 
-def load_problem(path):
-    scm = BinomialBinarySCM.load(path)
+def load_problem(path, type='binomial'):
+    scm = None
+    if type == 'binomial':
+        scm = BinomialBinarySCM.load(path)
+    elif type == 'sigmoid':
+        scm = SigmoidBinarySCM.load(path)
     y_name = scm.predict_target
     return scm, y_name
 
 
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
                    lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
-                   scm_loadpath=None):
+                   scm_loadpath=None, scm_type=None):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -94,7 +98,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         scm, y_name = generate_problem(N_nodes, p, min_in_degree, out_degree, max_uncertainty, seed=seed)
         costs = np.random.uniform(0, lbd / (N_nodes - 1), N_nodes - 1)
     else:
-        scm, y_name = load_problem(scm_loadpath)
+        scm, y_name = load_problem(scm_loadpath, type=scm_type)
         costs = np.load(scm_loadpath + 'costs.npy')
 
 
@@ -212,9 +216,9 @@ if __name__ == '__main__':
     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
                         default="both", type=str)
     parser.add_argument("--scm_loadpath", help="loadpath for scm to be used", default=None, type=str)
+    parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
-
 
     args = parser.parse_args()
 
@@ -239,4 +243,4 @@ if __name__ == '__main__':
     run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.out_degree,
                    args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-                   scm_loadpath=args.scm_loadpath)
+                   scm_loadpath=args.scm_loadpath, scm_type=args.scm_type)
