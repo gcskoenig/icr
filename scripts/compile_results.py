@@ -19,6 +19,15 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
+    cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
+            'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration']
+    cols_cost = ['r_type', 't_type', 'iteration', 'intv-cost']
+    output_cols = ['eta', 'gamma', 'perc_recomm_found', 'eta_obs', 'eta_obs_individualized',
+                   'gamma_obs', 'intv-cost']
+
+    df_resultss = pd.DataFrame([])
+    df_invs_resultss = pd.DataFrame([])
+
     base_base_path = args.savepath
 
     dirs = [ name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name)) ]
@@ -35,10 +44,8 @@ if __name__ == '__main__':
         r_types = ['individualized', 'subpopulation']
         t_types = ['improvement', 'acceptance']
 
-        cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
-                'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration']
         df = pd.DataFrame([], columns=cols)
-        df_cost = pd.DataFrame([], columns=['r_type', 't_type', 'iteration', 'intv-cost'])
+        df_cost = pd.DataFrame([], columns=cols_cost)
         df_invs = pd.DataFrame([])
 
         for r_type in r_types:
@@ -66,8 +73,10 @@ if __name__ == '__main__':
                         logging.warning('Could not load file {}'.format(path + '_stats.json'))
 
                     try:
-                        costss = pd.read_csv(path + 'costss.csv')
-                        cost = costss['intv_cost'].mean()
+                        cost_tmp = pd.read_csv(path + 'costss.csv', index_col=0)
+                        invs_tmp = pd.read_csv(path + 'invs.csv', index_col=0)
+                        ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
+                        cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
                         df_cost = df_cost.append({'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
                                        ignore_index=True)
                     except Exception as err:
@@ -93,8 +102,7 @@ if __name__ == '__main__':
             groupby_cols = ['r_type', 't_type']
 
             # main table
-            output_cols = ['eta', 'gamma', 'perc_recomm_found', 'eta_obs', 'eta_obs_individualized',
-                           'gamma_obs', 'intv-cost']
+
             gb_obj = df.groupby(groupby_cols)
             mean_table = gb_obj.mean()[output_cols]
             std_table = gb_obj.std()[output_cols]
@@ -113,6 +121,17 @@ if __name__ == '__main__':
             result_table.to_csv(result_dir + 'aggregated_result.csv')
             invs_res.to_csv(result_dir + 'aggregated_invs.csv')
             logging.info('SUCCESS in folder {}'.format(dir))
+
+            invs_res['gamma'] = result_table['gamma_mean'][0]
+            df_resultss = df_resultss.append(result_table)
+            df_invs_resultss = df_invs_resultss.append(invs_res)
         except Exception as err:
             logging.info('Not successful in directory {}'.format(dir))
             logging.info(err)
+
+
+    df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mean'])
+    df_resultss.to_csv(base_base_path + 'resultss.csv')
+
+    df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])
+    df_invs_resultss.to_csv(base_base_path + 'invs_resultss.csv')

@@ -183,7 +183,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 2, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
-                        model=None, use_scm_pred=False):
+                        model=None, use_scm_pred=False, predict_individualized=False):
     assert not (model is None and not use_scm_pred)
 
     # initializing prediction setup
@@ -276,7 +276,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     h_post = np.exp(h_post)
     h_post.index = y_post.index.copy()
 
-    if r_type == 'individualized' and t_type == 'improvement':
+    if r_type == 'individualized' and t_type == 'improvement' and predict_individualized:
         logging.debug('Computing individualized post-recourse predictions...')
         h_post_indiv = compute_h_post_individualized(scm, X_pre, X_post, interventions, intv_features, y_name, y=1)
         h_post['h_post_individualized'] = h_post_indiv['h_post_individualized']
