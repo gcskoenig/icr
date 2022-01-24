@@ -2,8 +2,8 @@ import logging
 import os
 
 import torch
-from mar.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
-from mar.causality.dags import DirectedAcyclicGraph
+from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
+from mcr.causality.dags import DirectedAcyclicGraph
 import numpy as np
 
 logging.getLogger().setLevel(logging.INFO)
@@ -294,10 +294,11 @@ scm = SigmoidBinarySCM(
     ),
     p_dict={'x1': sigma_high, 'x2': sigma_high, 'x3': sigma_high, 'x4': sigma_high, 'x5': sigma_high,
             'x6': sigma_high, 'x7': sigma_medium, 'x8': sigma_medium, 'x9': sigma_medium},
-    sigmoid_nodes={'y'}
+    sigmoid_nodes={'y'},
+    coeff_dict={'y': {'x1': 0.1, 'x2': 0.2, 'x3': 0.5, 'x4': 1.0, 'x5': 2.5, 'x6': 5.0}}
 )
 
-costs = np.array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.5])
+costs = np.array([0.1, 0.2, 0.5, 1.0, 2.5, 5.0, 0.1, 0.1, 0.1])
 y_name = 'y'
 scm.set_prediction_target(y_name)
 

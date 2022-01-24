@@ -4,8 +4,8 @@ import torch
 from torch.distributions import Normal, MultivariateNormal, Distribution
 import logging
 
-import mar.utils as utils
-from mar.estimation import ConditionalDistributionEstimator
+import mcr.utils as utils
+from mcr.estimation import ConditionalDistributionEstimator
 
 logger = logging.getLogger(__name__)
 

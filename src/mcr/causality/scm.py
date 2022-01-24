@@ -7,9 +7,9 @@ from torch.distributions import Normal, Distribution
 import numpy as np
 import json
 
-from mar.causality import DirectedAcyclicGraph
-from mar.estimation import GaussianConditionalEstimator
-from mar.backend.dist import TransformedUniform
+from mcr.causality import DirectedAcyclicGraph
+from mcr.estimation import GaussianConditionalEstimator
+from mcr.backend.dist import TransformedUniform
 
 import pyro
 import pyro.distributions as dist
@@ -663,7 +663,7 @@ class BinomialBinarySCM(StructuralCausalModel):
 
 class SigmoidBinarySCM(BinomialBinarySCM):
 
-    def __init__(self, dag, p_dict={}, sigmoid_nodes={}, u_prefix='u_'):
+    def __init__(self, dag, p_dict={}, sigmoid_nodes={}, coeff_dict={}, u_prefix='u_'):
         super(BinomialBinarySCM, self).__init__(dag, u_prefix=u_prefix)
 
         self.INVERTIBLE = True # not all units are invertible
@@ -678,6 +678,8 @@ class SigmoidBinarySCM(BinomialBinarySCM):
             if node in sigmoid_nodes:
                 self.model[node]['noise_distribution'] = dist.Uniform(0, 1)
                 self.model[node]['sigmoidal'] = True
+                assert node in coeff_dict.keys()
+                self.model[node]['coeff'] = coeff_dict[node]
             else:
                 self.model[node]['noise_distribution'] = dist.Binomial(probs=p_dict[node])
                 self.model[node]['sigmoidal'] = False
@@ -690,11 +692,13 @@ class SigmoidBinarySCM(BinomialBinarySCM):
             linear_comb = 0.0
             if len(self.model[node]['parents']) > 0:
                 for par in self.model[node]['parents']:
+                    assert par in self.model[node]['coeff'].keys()
+                    coeff = self.model[node]['coeff'][par]
                     if obs is None:
-                        linear_comb += self.model[par]['values'] - 0.5
+                        linear_comb += (self.model[par]['values'] - 0.5) * coeff
                     else:
-                        linear_comb += torch.tensor(obs[par]) - 0.5
-            return linear_comb * 2
+                        linear_comb += (torch.tensor(obs[par]) - 0.5) * coeff
+            return linear_comb
         else:
             return super()._linear_comb_parents(node, obs=obs)
 
@@ -702,15 +706,18 @@ class SigmoidBinarySCM(BinomialBinarySCM):
         self.dag.save(filepath)
         p_dict = {}
         sigmoidal = []
+        coeff_dict = {}
         for var_name in self.dag.var_names:
             if self.model[var_name]['sigmoidal']:
                 sigmoidal.append(var_name)
+                coeff_dict[var_name] = self.model[var_name]['coeff']
             else:
                 p_dict[var_name] = self.model[var_name]['noise_distribution'].probs.item()
         scm_dict = {}
         scm_dict['p_dict'] = p_dict
         scm_dict['y_name'] = self.predict_target
         scm_dict['sigmoidal'] = sigmoidal
+        scm_dict['coeff'] = coeff_dict
         try:
             with open(filepath + '_p_dict.json', 'w') as f:
                 json.dump(scm_dict, f)
@@ -724,7 +731,8 @@ class SigmoidBinarySCM(BinomialBinarySCM):
         f = open(filepath + '_p_dict.json')
         scm_dict = json.load(f)
         f.close()
-        scm = SigmoidBinarySCM(dag, p_dict=scm_dict['p_dict'], sigmoid_nodes=scm_dict['sigmoidal'])
+        scm = SigmoidBinarySCM(dag, p_dict=scm_dict['p_dict'], sigmoid_nodes=scm_dict['sigmoidal'],
+                               coeff_dict=scm_dict['coeff'])
         scm.set_prediction_target(scm_dict['y_name'])
         # noise_vals = pd.read_csv(filepath + '_noise_vals.csv')
         return scm
@@ -852,24 +860,22 @@ class SigmoidBinarySCM(BinomialBinarySCM):
         """
         Individualized post-recourse prediction
         """
-        raise NotImplementedError('Not implemented yet.')
-        scm_int = self.do(intv_dict)
+        assert self.model[y_name]['sigmoidal']
+
+        phi_pre = torch.sigmoid(self._linear_comb_parents(y_name, obs=obs_pre))
+        phi_post = torch.sigmoid(self._linear_comb_parents(y_name, obs=obs_post))
+        phi_delta = abs(phi_post - phi_pre)
+
         scm_pre_abd = self.abduct(obs_pre)
-        obs_post_ = obs_post.copy()
-        ys = [0, 1]
+        p_y_1_pre = scm_pre_abd.model[y_name]['noise_distribution'].p_y_1
 
-        log_probs = {}
+        cmp1 = min(phi_post, phi_pre) * p_y_1_pre
+        cmp4 = (1 - max(phi_pre, phi_post)) * (1 - p_y_1_pre)
+        cmp2 = phi_delta * (1 - p_y_1_pre)
+        cmp3 = phi_delta * p_y_1_pre
 
-        for y_tmp in ys:
-            obs_post_[y_name] = y_tmp
-            scm_int_abd = scm_int.abduct(obs_post_)
+        y_1 = cmp1 + (phi_post > phi_pre) * cmp2
+        y_0 = cmp4 + (phi_post <= phi_pre) * cmp3
 
-            # extract abducted values u' as dictionary
-            u = scm_int_abd.get_noise_distributions(check_deterministic=True)
-
-            ## compute their joint probability as specified by scm_
-            log_probs[y_tmp] = scm_pre_abd.log_prob_u(u)
-
-        denom = torch.log(sum([torch.exp(log_probs[y_tmp]) for y_tmp in ys]))
-        res = log_probs[y] - denom
+        res = torch.log(y_1 / (y_1 + y_0))
         return res

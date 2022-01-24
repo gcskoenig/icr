@@ -3,7 +3,7 @@ from typing import List
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from mar.utils import search_nonsorted
+from mcr.utils import search_nonsorted
 
 
 class DirectedAcyclicGraph:

@@ -28,15 +28,17 @@ All data is saved within one folder, which is given a randomly assigned id
 import json
 import logging
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 import numpy as np
 import math
 import random
 import os
 import argparse
 
-from mar.causality.dags import DirectedAcyclicGraph
-from mar.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
-from mar.recourse import recourse_population, save_recourse_result
+from mcr.causality.dags import DirectedAcyclicGraph
+from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
+from mcr.recourse import recourse_population, save_recourse_result
 
 
 logging.getLogger().setLevel(20)
@@ -80,7 +82,8 @@ def load_problem(path, type='binomial'):
 
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
                    lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
-                   scm_loadpath=None, scm_type=None):
+                   scm_loadpath=None, scm_type=None, predict_individualized=False,
+                   model_type='logreg'):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -108,26 +111,31 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     y = df[y_name]
 
     # split into batches
-    n_batches = 2
-    batch_size = math.floor(N / n_batches)
+    ixs = np.arange(X.shape[0])
+    perc = 0.1
+    ixs_test = np.random.choice(ixs, math.floor(perc * X.shape[0]), replace=False)
+    ixs_train = np.delete(ixs, ixs_test)
+
     batches = []
-    i = 0
+    batches.append([X.iloc[ixs_train, :], y.iloc[ixs_train], noise.iloc[ixs_train, :]])
+    batches.append([X.iloc[ixs_test, :], y.iloc[ixs_test], noise.iloc[ixs_test, :]])
 
-    while i < N:
-        X_i, y_i = X.iloc[i:i + batch_size, :], y.iloc[i:i + batch_size]
-        U_i = noise.iloc[i:i + batch_size, :]
-        batches.append((X_i, y_i, U_i))
-        i += batch_size
-
-    logging.info('Split the data into {} batches of ~{} elements'.format(n_batches, batch_size))
+    logging.info('Split the data into {} batches'.format(2))
 
 
     # fitting standard logistic regression on the first batch
 
     logging.info('Fitting model...')
-    model = LogisticRegression()
-    model.fit(batches[0][0], batches[0][1])
 
+    model = None
+    if model_type == 'logreg':
+        model = LogisticRegression()
+    elif model_type == 'rf':
+        model = RandomForestClassifier(n_estimators=5)
+    else:
+        raise NotImplementedError('model type {} not implemented'.format(model_type))
+    model.fit(batches[0][0], batches[0][1])
+    assert model.predict_proba([[0, 0, 0, 0, 1, 0, 1, 1, 1]])[0][1] >= 0.95
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 
@@ -144,7 +152,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     with open(savepath + 'problem_setup.json', 'w') as f:
         json.dump(problem_setup, f)
     # model coefficients
-    np.save(savepath + 'model_coef.npy', np.array(model.coef_))
+    # np.save(savepath + 'model_coef.npy', np.array(model.coef_))
     # scm
     scm.save(savepath + 'scm')
     # data
@@ -182,7 +190,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             # perform recourse on subpopulation
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
                                              proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
-                                             thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred)
+                                             thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
+                                             predict_individualized=predict_individualized)
 
             # save results
             logging.info('Saving results for {}_{}...'.format(t_type, r_type))
@@ -217,6 +226,9 @@ if __name__ == '__main__':
                         default="both", type=str)
     parser.add_argument("--scm_loadpath", help="loadpath for scm to be used", default=None, type=str)
     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
+    parser.add_argument("--predict_individualized", help="use individualized prediction if available",
+                        default=False, type=bool)
+    parser.add_argument("--model_type", help="model class", default='logreg', type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
 
@@ -243,4 +255,6 @@ if __name__ == '__main__':
     run_experiment(args.N_nodes, args.p, args.max_uncertainty, args.min_in_degree, args.out_degree,
                    args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-                   scm_loadpath=args.scm_loadpath, scm_type=args.scm_type)
+                   scm_loadpath=args.scm_loadpath, scm_type=args.scm_type,
+                   predict_individualized=args.predict_individualized,
+                   model_type=args.model_type)

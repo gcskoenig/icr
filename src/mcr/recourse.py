@@ -57,7 +57,7 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=
 
 def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_type, subpopulation_size, individual,
              return_split_cost=False):
-    intv_dict = indvd_to_intrv(scm, features, individual, obs)
+    intv_dict = indvd_to_intrv(scm, features, individual, obs, causes_of=None)
 
     scm_ = scm.copy()
 
@@ -129,8 +129,6 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     MX_PROB = 0.05
     NGEN = 100
 
-
-
     toolbox = base.Toolbox()
     toolbox.register("intervene", random.randint, 0, 1)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
@@ -159,9 +157,11 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    pop = toolbox.population(n=len(features) * 10)
-    hof = tools.HallOfFame(len(features))
-    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE * 5, IND_SIZE * 10, CX_PROB, MX_PROB, NGEN,
+    IND_SIZE_OPTIM = min(3, IND_SIZE)
+
+    pop = toolbox.population(n=IND_SIZE_OPTIM * 10)
+    hof = tools.HallOfFame(IND_SIZE)
+    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE_OPTIM * 5, IND_SIZE_OPTIM * 10, CX_PROB, MX_PROB, NGEN,
                                   stats=stats, halloffame=hof, verbose=False)
 
     winner = list(hof)[0]

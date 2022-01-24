@@ -6,20 +6,28 @@ import copy
 import random
 import argparse
 from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import log_loss, accuracy_score
 import numpy as np
 import math
 
-from mar.recourse import recourse_population, save_recourse_result
-from mar.causality.scm import BinomialBinarySCM
+from mcr.recourse import recourse_population, save_recourse_result
+from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
 
-def load_problem(path):
-    scm = BinomialBinarySCM.load(path)
+
+def load_problem(path, type='binomial'):
+    scm = None
+    if type == 'binomial':
+        scm = BinomialBinarySCM.load(path)
+    elif type == 'sigmoid':
+        scm = SigmoidBinarySCM.load(path)
+    else:
+        raise NotImplementedError('only binomial or sigmoid')
     y_name = scm.predict_target
     return scm, y_name
 
 
-def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, costs, N):
+def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, costs, N, model_type='logreg'):
 
     # GENERATE THREE BATCHES OF DATA
 
@@ -46,8 +54,15 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
 
     logging.info('Fitting a model on batch 0')
 
-    model = LogisticRegression()
+    model = None
+    if model_type == 'logreg':
+        model = LogisticRegression()
+    elif model_type == 'rf':
+        rf = RandomForestClassifier(n_estimators=5)
+        model = rf
+
     model.fit(batches[0][0], batches[0][1])
+    assert model.predict_proba([[0, 0, 0, 0, 0, 1, 1, 1, 1]])[0][1] > 0.95
 
     model.predict(batches[1][0])
 
@@ -57,7 +72,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
 
     # EXPERIMENTS
 
-    r_types = ['individualized', 'improvement']
+    r_types = ['individualized', 'subpopulation']
     t_types = ['improvement', 'acceptance']
 
 
@@ -127,7 +142,11 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
             X_train2 = batches_post[1][0]
             y_train2 = batches_post[1][1]
 
-            model2 = LogisticRegression()
+            model2 = None
+            if model_type == 'logreg':
+                model2 = LogisticRegression()
+            elif model_type == 'rf':
+                model2 = RandomForestClassifier(n_estimators=5)
             model2.fit(X_train2, y_train2)
 
             logging.info('The refit on pre- and post-recourse data has coefficients {}'.format(model2.coef_))
@@ -135,7 +154,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
             models = [model, model2]
 
             for nr in [0, 1]:
-                np.savetxt(savepath_run + 'model{}_coef.csv'.format(nr), np.array(models[nr].coef_), delimiter=',')
+                # np.savetxt(savepath_run + 'model{}_coef.csv'.format(nr), np.array(models[nr].coef_), delimiter=',')
                 X_post_nr, y_post_nr = result_tuples[nr][5], result_tuples[nr][6]
                 invs = result_tuples[nr][4]
                 recourse_performed = invs[invs.sum(axis=1) >= 1].index
@@ -179,6 +198,8 @@ if __name__ == '__main__':
 
     parser.add_argument("--seed", help="seed", default=42, type=int)
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
+    parser.add_argument("--scm_type", help="class of scm", default='binomial', type=str)
+    parser.add_argument("--model_type", help='ml model class', default='logreg', type=str)
 
     args = parser.parse_args()
 
@@ -186,7 +207,7 @@ if __name__ == '__main__':
     logging.getLogger().setLevel(args.logging_level)
     random.seed(args.seed)
 
-    scm, y_name = load_problem(args.scm_loadpath)
+    scm, y_name = load_problem(args.scm_loadpath, type=args.scm_type)
     costs = np.load(args.scm_loadpath + 'costs.npy')
 
     # expects that we are in a directory with a subfolder called "experiments"
@@ -204,4 +225,5 @@ if __name__ == '__main__':
         except Exception as err:
             logging.warning('Could not generate folder...{}'.format(savepath_config))
 
-    run_robustness_experiment(savepath_config, scm, y_name, args.gamma, args.gamma, args.lbd, args.thresh, costs, args.N)
+    run_robustness_experiment(savepath_config, scm, y_name, args.gamma, args.gamma, args.lbd, args.thresh, costs,
+                              args.N, model_type=args.model_type)

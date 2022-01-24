@@ -5,7 +5,7 @@ import os
 import logging
 import argparse
 
-from mar.causality.scm import BinomialBinarySCM
+from mcr.causality.scm import BinomialBinarySCM
 
 logging.getLogger().setLevel(logging.INFO)
 
