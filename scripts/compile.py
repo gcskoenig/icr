@@ -9,31 +9,23 @@ from mcr.causality.scm import BinomialBinarySCM
 
 logging.getLogger().setLevel(logging.INFO)
 
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser("Aggregate experiment results")
-
-    parser.add_argument("savepath",
-                        help="savepath for the experiment folder. either relative to working directory or absolute.",
-                        type=str)
-
-    args = parser.parse_args()
+def compile_experiments(savepath):
+    base_base_path = savepath
 
     cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
-            'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration']
+            'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration', 'eta_obs_refit', 'model_coef',
+            'model_coef_refit']
     cols_cost = ['r_type', 't_type', 'iteration', 'intv-cost']
-    output_cols = ['eta', 'gamma', 'perc_recomm_found', 'eta_obs', 'eta_obs_individualized',
+    output_cols = ['eta', 'gamma', 'perc_recomm_found', 'eta_obs', 'eta_obs_refit', 'eta_obs_individualized',
                    'gamma_obs', 'intv-cost']
 
     df_resultss = pd.DataFrame([])
     df_invs_resultss = pd.DataFrame([])
 
-    base_base_path = args.savepath
-
-    dirs = [ name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name)) ]
+    dirs = [name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name))]
 
     for dir in dirs:
-        base_path = base_base_path + dir +'/'
+        base_path = base_base_path + dir + '/'
 
         # load scm
         scm = BinomialBinarySCM.load(base_path + 'scm')
@@ -50,15 +42,17 @@ if __name__ == '__main__':
 
         for r_type in r_types:
             for t_type in t_types:
-                for it in range(n_iterations):
-                    path = base_path
-                    path = path + '{}-{}/'.format(t_type, r_type)
-                    path = path + '{}/'.format(it)
+                path = base_path
+                path = path + '{}-{}/'.format(t_type, r_type)
 
+                it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
+                for it in it_dirs:
+
+                    path = path + '{}/'.format(it)
                     try:
                         f = None
                         if 'batch2_stats.json' in os.listdir(path):
-                            f = open(path + '_stats.json')
+                            f = open(path + 'batch2_stats.json')
                         elif 'stats.json' in os.listdir(path):
                             f = open(path + 'stats.json')
                         else:
@@ -77,8 +71,9 @@ if __name__ == '__main__':
                         invs_tmp = pd.read_csv(path + 'invs.csv', index_col=0)
                         ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
                         cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
-                        df_cost = df_cost.append({'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
-                                       ignore_index=True)
+                        df_cost = df_cost.append(
+                            {'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
+                            ignore_index=True)
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(path + 'costss.csv'))
 
@@ -102,7 +97,6 @@ if __name__ == '__main__':
             groupby_cols = ['r_type', 't_type']
 
             # main table
-
             gb_obj = df.groupby(groupby_cols)
             mean_table = gb_obj.mean()[output_cols]
             std_table = gb_obj.std()[output_cols]
@@ -129,9 +123,23 @@ if __name__ == '__main__':
             logging.info('Not successful in directory {}'.format(dir))
             logging.info(err)
 
-
     df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mean'])
     df_resultss.to_csv(base_base_path + 'resultss.csv')
 
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])
     df_invs_resultss.to_csv(base_base_path + 'invs_resultss.csv')
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser("Aggregate experiment results")
+
+    parser.add_argument("savepath",
+                        help="savepath for the experiment folder. either relative to working directory or absolute.",
+                        type=str)
+
+    args = parser.parse_args()
+    compile_experiments(args.savepath)
+
+
+

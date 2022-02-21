@@ -40,6 +40,8 @@ from mcr.causality.dags import DirectedAcyclicGraph
 from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
 from mcr.recourse import recourse_population, save_recourse_result
 
+from compile import compile_experiments
+
 
 logging.getLogger().setLevel(20)
 
@@ -111,16 +113,20 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     y = df[y_name]
 
     # split into batches
-    ixs = np.arange(X.shape[0])
-    perc = 0.1
-    ixs_test = np.random.choice(ixs, math.floor(perc * X.shape[0]), replace=False)
-    ixs_train = np.delete(ixs, ixs_test)
+    batch_size = math.floor(N / 3)
+
+    logging.info('Creating three batches of data with {} observations'.format(batch_size))
 
     batches = []
-    batches.append([X.iloc[ixs_train, :], y.iloc[ixs_train], noise.iloc[ixs_train, :]])
-    batches.append([X.iloc[ixs_test, :], y.iloc[ixs_test], noise.iloc[ixs_test, :]])
+    i = 0
 
-    logging.info('Split the data into {} batches'.format(2))
+    while i < N:
+        X_i, y_i = X.iloc[i:i + batch_size, :], y.iloc[i:i + batch_size]
+        U_i = noise.iloc[i:i + batch_size, :]
+        batches.append((X_i, y_i, U_i))
+        i += batch_size
+
+    logging.info('Split the data into {} batches'.format(3))
 
 
     # fitting standard logistic regression on the first batch
@@ -160,6 +166,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     batches[0][1].to_csv(savepath + 'y_train.csv')
     batches[1][0].to_csv(savepath + 'X_test.csv')
     batches[1][1].to_csv(savepath + 'y_test.csv')
+    batches[2][0].to_csv(savepath + 'X_val.csv')
+    batches[2][1].to_csv(savepath + 'y_val.csv')
 
 
     # run all types of recourse on the setting
@@ -187,7 +195,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             it_path = savepath_config_type + '{}/'.format(ii)
             os.mkdir(it_path)
 
-            # perform recourse on subpopulation
+            # perform recourse on batch 1
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
                                              proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
@@ -200,6 +208,72 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             logging.info('Done.')
 
 
+            # create a large dataset with mixed pre- and post-recourse data
+            X_train_large = batches[0][0].copy()
+            y_train_large = batches[0][1].copy()
+
+            X_batch1_post = batches[1][0].copy()
+            y_batch1_post = batches[1][1].copy()
+            X_batch1_post_impl = result_tpl[5]
+            y_batch1_post_impl = result_tpl[6]
+            X_batch1_post.iloc[X_batch1_post_impl.index, :] = X_batch1_post_impl
+            y_batch1_post.iloc[y_batch1_post_impl.index] = y_batch1_post_impl
+
+            X_train_large = X_train_large.append(X_batch1_post, ignore_index=True)
+            y_train_large = y_train_large.append(y_batch1_post, ignore_index=True)
+
+            # fit a separate model on batch0_pre and batch1_post
+
+            model_post = None
+            if model_type == 'logreg':
+                model_post = LogisticRegression()
+            elif model_type == 'rf':
+                model_post = RandomForestClassifier(n_estimators=5)
+            else:
+                raise NotImplementedError('model type {} not implemented'.format(model_type))
+
+            model_post.fit(X_train_large, y_train_large)
+
+            # perform recourse on batch 1
+            logging.info('Perform recourse on batch 1')
+            result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
+                                                    proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                                    thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
+                                                    predict_individualized=predict_individualized)
+            X_batch2_post_impl, y_batch2_post_impl = result_tpl[5], result_tpl[6]
+
+            # save results
+            logging.info('Saving results for {}_{} batch2 ...'.format(t_type, r_type))
+            savepath_batch2 = it_path + 'batch2_'
+            save_recourse_result(savepath_batch2, result_tpl_batch2)
+            logging.info('Done.')
+
+            # assess acceptance for batch 2 with model_mixed
+            predict_batch2 = model_post.predict(X_batch2_post_impl)
+            eta_obs_batch2 = np.mean(predict_batch2)
+
+            # save additional stats in the stats.json
+            logging.info('Saving additional stats.')
+            try:
+                with open(savepath_batch2 + 'stats.json') as json_file:
+                    stats = json.load(json_file)
+
+                # add further information to the statistics
+                stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+                if model_type == 'logreg':
+                    stats['model_coef'] = model.coef_.tolist()
+                    stats['model_coef_refit'] = model_post.coef_.tolist()
+                else:
+                    stats['model_coef'] = float('nan')
+                    stats['model_coef_refit'] = float('nan')
+
+                with open(savepath_batch2 + 'stats.json', 'w') as json_file:
+                    json.dump(stats, json_file)
+            except Exception as exc:
+                logging.info('Could not append eta_obs_batch2 to stats.json')
+                logging.debug(exc)
+
+
 if __name__ == '__main__':
     # parsing command line arguments
     parser = argparse.ArgumentParser("Create recourse experiments. " +
@@ -210,12 +284,13 @@ if __name__ == '__main__':
     parser.add_argument("savepath",
                         help="savepath for the experiment folder. either relative to working directory or absolute.",
                         type=str)
-    parser.add_argument("N_nodes", help="List with number of nodes to generate", type=int)
-    parser.add_argument("N", help="Number of observations", type=int)
+    parser.add_argument("scm_loadpath", help="loadpath for scm to be used", type=str)
     parser.add_argument("gamma", help="gammas for recourse", type=float)
-    parser.add_argument("thresh", help="threshs for prediction and recourse", type=float)
+    parser.add_argument("N", help="Number of observations", type=int)
     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
 
+    parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
+    parser.add_argument("--N_nodes", help="List with number of nodes to generate", default=5, type=int)
     parser.add_argument("--lbd", help="lambda for optimization", default=10.0, type=float)
     parser.add_argument("--p", help="List with edge probabilities to generate", default=0.8, type=float)
     parser.add_argument("--max_uncertainty", help="Maximum p for y node", default=0.3, type=float)
@@ -224,7 +299,6 @@ if __name__ == '__main__':
     parser.add_argument("--seed", help="seed", default=42, type=int)
     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
                         default="both", type=str)
-    parser.add_argument("--scm_loadpath", help="loadpath for scm to be used", default=None, type=str)
     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
     parser.add_argument("--predict_individualized", help="use individualized prediction if available",
                         default=False, type=bool)
@@ -258,3 +332,5 @@ if __name__ == '__main__':
                    scm_loadpath=args.scm_loadpath, scm_type=args.scm_type,
                    predict_individualized=args.predict_individualized,
                    model_type=args.model_type)
+
+    compile_experiments(args.savepath)
