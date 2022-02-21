@@ -142,9 +142,6 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
             X_train2 = batches_post[1][0]
             y_train2 = batches_post[1][1]
 
-            X_train2.append(batches_post[0][0], ignore_index=True)
-            y_train2.append(batches_post[0][1], ignore_index=True)
-
             model2 = None
             if model_type == 'logreg':
                 model2 = LogisticRegression()
@@ -152,6 +149,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
                 model2 = RandomForestClassifier(n_estimators=5)
 
             model2.fit(X_train2, y_train2)
+            model2.fit(batches_post[1][0], batches_post[1][1])
 
             logging.info('The refit on pre- and post-recourse data has coefficients {}'.format(model2.coef_))
 

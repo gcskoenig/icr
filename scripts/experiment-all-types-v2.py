@@ -40,6 +40,8 @@ from mcr.causality.dags import DirectedAcyclicGraph
 from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
 from mcr.recourse import recourse_population, save_recourse_result
 
+from compile import compile_experiments
+
 
 logging.getLogger().setLevel(20)
 
@@ -282,7 +284,7 @@ if __name__ == '__main__':
     parser.add_argument("savepath",
                         help="savepath for the experiment folder. either relative to working directory or absolute.",
                         type=str)
-    parser.add_argument("scm_loadpath", help="loadpath for scm to be used", default=None, type=str)
+    parser.add_argument("scm_loadpath", help="loadpath for scm to be used", type=str)
     parser.add_argument("gamma", help="gammas for recourse", type=float)
     parser.add_argument("N", help="Number of observations", type=int)
     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
@@ -330,3 +332,5 @@ if __name__ == '__main__':
                    scm_loadpath=args.scm_loadpath, scm_type=args.scm_type,
                    predict_individualized=args.predict_individualized,
                    model_type=args.model_type)
+
+    compile_experiments(args.savepath)
