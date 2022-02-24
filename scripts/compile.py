@@ -39,6 +39,8 @@ def compile_experiments(savepath):
         df = pd.DataFrame([], columns=cols)
         df_cost = pd.DataFrame([], columns=cols_cost)
         df_invs = pd.DataFrame([])
+        df_coefs = pd.DataFrame([])
+        df_coefs_refits = pd.DataFrame([])
 
         for r_type in r_types:
             for t_type in t_types:
@@ -63,6 +65,13 @@ def compile_experiments(savepath):
                         stats['iteration'] = it
                         stats_series = pd.Series(stats)
                         df = df.append(stats_series[cols], ignore_index=True)
+
+                        coefs = pd.Series(stats_series['model_coef'][0])
+                        coefs_refit = pd.Series(stats_series['model_coef_refit'][0])
+
+                        df_coefs.append(coefs)
+                        df_coefs_refits.append(coefs_refit)
+
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(itpath + '_stats.json'))
 
