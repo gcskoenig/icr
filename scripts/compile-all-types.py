@@ -57,7 +57,7 @@ if __name__ == '__main__':
 
                     try:
                         f = None
-                        if '_stats.json' in os.listdir(path):
+                        if 'batch2_stats.json' in os.listdir(path):
                             f = open(path + '_stats.json')
                         elif 'stats.json' in os.listdir(path):
                             f = open(path + 'stats.json')

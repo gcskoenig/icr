@@ -69,6 +69,7 @@ def compile_experiments(savepath):
                     try:
                         cost_tmp = pd.read_csv(itpath + 'costss.csv', index_col=0)
                         invs_tmp = pd.read_csv(itpath + 'invs.csv', index_col=0)
+
                         ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
                         cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
                         df_cost = df_cost.append(
@@ -88,6 +89,7 @@ def compile_experiments(savepath):
                         df_invs = df_invs.append(invs, ignore_index=True)
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(itpath + 'invs.csv'))
+
 
         try:
             # join the dataframes

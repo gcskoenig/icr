@@ -62,7 +62,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
         model = rf
 
     model.fit(batches[0][0], batches[0][1])
-    assert model.predict_proba([[0, 0, 0, 0, 0, 1, 1, 1, 1]])[0][1] > 0.95
+    # assert model.predict_proba([[0, 0, 0, 0, 0, 1, 1, 1, 1]])[0][1] > 0.95
 
     model.predict(batches[1][0])
 
@@ -99,7 +99,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
 
             ## Perform CR on batches 1 and 2
 
-            logging.info('Batches 1 and 2 are replace with post-recourse data')
+            logging.info('Batches 1 and 2 are replaced with post-recourse data')
             logging.info('Batch 0 is left as-is')
 
             # for batches 1 and 2 recourse is performed
@@ -137,8 +137,8 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
                 batches_post[ii][1].iloc[y_post.index] = y_post
 
 
-            # fit model on batch 1
-            # batch 0 post is identical to batch 0 pre
+            # fit model on batch 0 and 1
+
             X_train2 = batches_post[1][0]
             y_train2 = batches_post[1][1]
 
@@ -147,14 +147,16 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
                 model2 = LogisticRegression()
             elif model_type == 'rf':
                 model2 = RandomForestClassifier(n_estimators=5)
+
             model2.fit(X_train2, y_train2)
+            model2.fit(batches_post[1][0], batches_post[1][1])
 
             logging.info('The refit on pre- and post-recourse data has coefficients {}'.format(model2.coef_))
 
             models = [model, model2]
 
             for nr in [0, 1]:
-                # np.savetxt(savepath_run + 'model{}_coef.csv'.format(nr), np.array(models[nr].coef_), delimiter=',')
+                # subset the data to individuals who implemented recourse
                 X_post_nr, y_post_nr = result_tuples[nr][5], result_tuples[nr][6]
                 invs = result_tuples[nr][4]
                 recourse_performed = invs[invs.sum(axis=1) >= 1].index
@@ -162,6 +164,7 @@ def run_robustness_experiment(savepath, scm, y_name, gamma, eta, lbd, thresh, co
                 y_post_nr = y_post_nr.loc[recourse_performed]
 
                 if len(recourse_performed) > 0:
+                    # save predictions for individuals who implemented recourse
                     predict2 = models[nr].predict(X_post_nr)
                     np.savetxt(savepath_run + 'predict{}.csv'.format(nr), predict2, delimiter=',')
 

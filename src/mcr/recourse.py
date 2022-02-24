@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 import json
 
+from sklearn.metrics import accuracy_score
 import logging
 
 from deap import base, creator
@@ -285,9 +286,18 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     for df in [X_post, y_post, interventions, X_pre, y_pre, y_hat_pre, h_post]:
         df.index = ixs_recourse
 
+    # compute model performance on pre- and post-recourse data
+    predict_pre = model.predict(X_pre)
+    predict_post = model.predict(X_post)
+    accuracy_pre = accuracy_score(y_pre, predict_pre)
+    accuracy_post = accuracy_score(y_post, predict_post)
+
+
     logging.debug('Computing stats...')
     stats = {}
     ixs_rp = interventions[interventions.sum(axis=1) >= 1].index # indexes for which recourse was performed
+    stats['accuracy_pre'] = accuracy_pre
+    stats['accuracy_post'] = accuracy_post
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())
     stats['recourse_recommended_ixs'] = list(ixs_rp.copy())
     stats['perc_recomm_found'] = float(ixs_rp.shape[0] / X_post.shape[0])

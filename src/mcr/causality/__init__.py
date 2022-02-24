@@ -1,2 +1,2 @@
-from mar.causality.dags import DirectedAcyclicGraph
-from mar.causality.scm import *
+from mcr.causality.dags import DirectedAcyclicGraph
+from mcr.causality.scm import *

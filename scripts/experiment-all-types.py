@@ -135,7 +135,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     else:
         raise NotImplementedError('model type {} not implemented'.format(model_type))
     model.fit(batches[0][0], batches[0][1])
-    assert model.predict_proba([[0, 0, 0, 0, 1, 0, 1, 1, 1]])[0][1] >= 0.95
+    # assert model.predict_proba([[0, 0, 0, 0, 1, 0, 1, 1, 1]])[0][1] >= 0.95
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 

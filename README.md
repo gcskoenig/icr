@@ -3,10 +3,18 @@
 
 ## Installation
 
+We used python version ``3.9.7``. We recommend to set up a fresh virtual environment, to install the dependenciees and then the package.
+
 ### Dependencies
 
-The dependencies can be found in the `requirements.txt` file.
+We recommend to install ``torch``, ``scikit-learn``, ``matplotlib``, ``seaborn``,  ``ray`` and ``pyro`` seperately.
+For torch, follow the instruction on their [website](https://pytorch.org/get-started/locally/).
+For scikit-learn check out [their website](https://scikit-learn.org/stable/install.html).
+For pyro, follow the instructions on their [website](https://docs.pyro.ai/en/0.3.1/installation.html).
 For ray, only `ray[tune]` is required. Follow the instructions in the [ray documentation](https://docs.ray.io/en/latest/installation.html).
+
+The dependencies can be found in the `requirements.txt` file.
+You can install them using ``pip install -r requirements.txt``.
 
 ### Installation with pip
 
@@ -60,7 +68,7 @@ These values indicate the results presented in the paper.
 In order to reproduce our results, run the following script for ``[gamma]`` levels 0.9 and 0.95
 
 ```
-python robustness.py ../scms/example1/ [gamma] 2 0.5 1500 ../path-to-results-robustness/
+python scripts/experiment-robustness.py scms/example1/ [gamma] 2 0.5 1500 ../path-to-results-robustness/
 
 ```
 
@@ -68,7 +76,7 @@ In the ``path-to-results-robustness/`` you can find a folder each run, containin
 They can be compiled using 
 
 ```
-python compile-robustness.py path-to-results-robustness/
+python scripts/compile-robustness.py path-to-results-robustness/
 ```
 
 Then, in each of the folders there is a file ``aggregated_result.csv``, a table with
@@ -77,4 +85,3 @@ Then, in each of the folders there is a file ``aggregated_result.csv``, a table 
 - `eta_obs_refit`: The observed acceptance rate on the refit
 - `r_type`: whether subpopulation-based or individualized recourse was used
 - `t_type`: whether improvement or acceptance was targeted
-
