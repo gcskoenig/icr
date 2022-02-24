@@ -69,8 +69,8 @@ def compile_experiments(savepath):
                         coefs = pd.Series(stats_series['model_coef'][0])
                         coefs_refit = pd.Series(stats_series['model_coef_refit'][0])
 
-                        df_coefs.append(coefs, ignore_index=True)
-                        df_coefs_refits.append(coefs_refit, ignore_index=True)
+                        df_coefs = df_coefs.append(coefs, ignore_index=True)
+                        df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
 
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(itpath + '_stats.json'))
