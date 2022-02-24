@@ -140,6 +140,9 @@ def compile_experiments(savepath):
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])
     df_invs_resultss.to_csv(base_base_path + 'invs_resultss.csv')
 
+    df_coefs.to_csv(base_base_path + 'model_coefs.csv')
+    df_coefs_refits.to_csv(base_base_path + 'model_coefs_refits.csv')
+
 
 if __name__ == '__main__':
 
