@@ -66,8 +66,9 @@ def compile_experiments(savepath):
                         stats_series = pd.Series(stats)
                         df = df.append(stats_series[cols], ignore_index=True)
 
-                        coefs = pd.Series(stats_series['model_coef'][0])
-                        coefs_refit = pd.Series(stats_series['model_coef_refit'][0])
+                        coefs = pd.Series(stats_series['model_coef'][0] + stats_series['model_coef'][1])
+                        coefs_refit = pd.Series(stats_series['model_coef_refit'][0] +
+                                                stats_series['model_coef_refit'][1])
 
                         coefs['t_type'] = t_type
                         coefs['r_type'] = r_type
@@ -170,6 +171,3 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     compile_experiments(args.savepath)
-
-
-

@@ -261,8 +261,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
                 # add further information to the statistics
                 stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
                 if model_type == 'logreg':
-                    stats['model_coef'] = model.coef_.tolist()
-                    stats['model_coef_refit'] = model_post.coef_.tolist()
+                    stats['model_coef'] = model.coef_.tolist().append(model.intercept_.tolist())
+                    stats['model_coef_refit'] = model_post.coef_.tolist().append(model.intercept_.tolist())
                 else:
                     stats['model_coef'] = float('nan')
                     stats['model_coef_refit'] = float('nan')
