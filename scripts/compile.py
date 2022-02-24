@@ -71,11 +71,11 @@ def compile_experiments(savepath):
 
                         coefs['t_type'] = t_type
                         coefs['r_type'] = r_type
-                        coefs['it'] = it
+                        coefs['it'] = int(it)
 
                         coefs_refit['t_type'] = t_type
                         coefs_refit['r_type'] = r_type
-                        coefs_refit['it'] = it
+                        coefs_refit['it'] = int(it)
 
                         df_coefs = df_coefs.append(coefs, ignore_index=True)
                         df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
@@ -147,6 +147,9 @@ def compile_experiments(savepath):
 
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])
     df_invs_resultss.to_csv(base_base_path + 'invs_resultss.csv')
+
+    df_coefs.set_index(['t_type', 'r_type', 'it'], inplace=True)
+    df_coefs_refits.set_index(['t_type', 'r_type', 'it'], inplace=True)
 
     df_coefs.to_csv(base_base_path + 'model_coefs.csv')
     df_coefs_refits.to_csv(base_base_path + 'model_coefs_refits.csv')
