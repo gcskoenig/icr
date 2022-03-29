@@ -147,6 +147,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     model_refits_batch0 = []
     for ii in range(nr_refits_batch0):
         model_tmp = clone(model)
+        model_tmp.random_state = np.random.randint(2**16)
         model_tmp.fit(batches[0][0], batches[0][1])
         model_refits_batch0.append(model_tmp)
         print(model_tmp.coef_)
