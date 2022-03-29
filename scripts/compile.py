@@ -77,7 +77,7 @@ def compile_experiments(savepath, dirs=None):
                         stats_series = pd.Series(stats)
                         df = df.append(stats_series[cols], ignore_index=True)
 
-                        if not np.isnan(stats_series['model_coef'][0]):
+                        if not np.isnan(stats_series['model_coef']):
                             coefs = pd.Series(stats_series['model_coef'][0] + stats_series['model_coef'][1])
                             coefs_refit = pd.Series(stats_series['model_coef_refit'][0] +
                                                     stats_series['model_coef_refit'][1])
