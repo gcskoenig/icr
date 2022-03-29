@@ -154,11 +154,6 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         model_tmp.fit(batches[0][0], batches[0][1])
         model_refits_batch0.append(model_tmp)
 
-        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4, 4), dpi=800)
-        tree.plot_tree(model_tmp.estimators_[0],
-                       filled=True)
-        plt.show()
-
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 
     problem_setup = {'N': N, 'N_nodes': N_nodes, 'p': p, 'max_uncertainty': max_uncertainty,
