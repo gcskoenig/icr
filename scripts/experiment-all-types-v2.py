@@ -149,6 +149,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         model_tmp = clone(model)
         model_tmp.fit(batches[0][0], batches[0][1])
         model_refits_batch0.append(model_tmp)
+        print(model_tmp.coef_)
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 

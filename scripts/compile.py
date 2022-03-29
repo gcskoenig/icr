@@ -34,9 +34,13 @@ def compile_experiments(savepath, dirs=None):
         base_path = dir
 
         # load scm
-        scm = BinomialBinarySCM.load(base_path + 'scm')
-        causes = scm.dag.get_ancestors_node(scm.predict_target)
-        non_causes = set(scm.dag.var_names) - causes - {scm.predict_target}
+        try:
+            scm = BinomialBinarySCM.load(base_path + 'scm')
+            causes = scm.dag.get_ancestors_node(scm.predict_target)
+            non_causes = set(scm.dag.var_names) - causes - {scm.predict_target}
+        except FileNotFoundError as err:
+            logging.warning(err)
+            break
 
         n_iterations = 5
         r_types = ['individualized', 'subpopulation']
