@@ -86,7 +86,7 @@ def load_problem(path, type='binomial'):
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
                    lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    scm_loadpath=None, scm_type=None, predict_individualized=False,
-                   model_type='logreg', nr_refits_batch0=5):
+                   model_type='logreg', nr_refits_batch0=5, **kwargs_model):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -136,9 +136,9 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
     model = None
     if model_type == 'logreg':
-        model = LogisticRegression()
+        model = LogisticRegression(**kwargs_model)
     elif model_type == 'rf':
-        model = RandomForestClassifier(n_estimators=5)
+        model = RandomForestClassifier(n_estimators=5, **kwargs_model)
     else:
         raise NotImplementedError('model type {} not implemented'.format(model_type))
     model.fit(batches[0][0], batches[0][1])
@@ -325,6 +325,7 @@ if __name__ == '__main__':
     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
+    parser.add_argument("--C", help='inverse of regularization strengh', default=10**6, type=float)
 
     args = parser.parse_args()
 
@@ -351,6 +352,6 @@ if __name__ == '__main__':
                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
                    scm_loadpath=args.scm_loadpath, scm_type=args.scm_type,
                    predict_individualized=args.predict_individualized,
-                   model_type=args.model_type)
+                   model_type=args.model_type, C=args.C)
 
     compile_experiments(args.savepath)
