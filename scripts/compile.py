@@ -22,10 +22,10 @@ def compile_experiments(savepath, dirs=None):
 
     cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
             'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration', 'eta_obs_refit', 'model_coef',
-            'model_coef_refit']
+            'model_coef_refit', 'eta_obs_refits_batch0_mean']
     cols_cost = ['r_type', 't_type', 'iteration', 'intv-cost']
     output_cols = ['eta', 'gamma', 'perc_recomm_found', 'eta_obs', 'eta_obs_refit', 'eta_obs_individualized',
-                   'gamma_obs', 'intv-cost']
+                   'eta_obs_refits_batch0_mean', 'gamma_obs', 'intv-cost']
 
     df_resultss = pd.DataFrame([])
     df_invs_resultss = pd.DataFrame([])

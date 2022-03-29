@@ -29,6 +29,7 @@ import json
 import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.base import clone
 from sklearn.model_selection import train_test_split
 import numpy as np
 import math
@@ -85,7 +86,7 @@ def load_problem(path, type='binomial'):
 def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed, N,
                    lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    scm_loadpath=None, scm_type=None, predict_individualized=False,
-                   model_type='logreg'):
+                   model_type='logreg', nr_refits_batch0=5):
     try:
         os.mkdir(savepath)
     except OSError as err:
@@ -129,7 +130,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     logging.info('Split the data into {} batches'.format(3))
 
 
-    # fitting standard logistic regression on the first batch
+    # fitting model on the first batch
 
     logging.info('Fitting model...')
 
@@ -141,7 +142,13 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     else:
         raise NotImplementedError('model type {} not implemented'.format(model_type))
     model.fit(batches[0][0], batches[0][1])
-    # assert model.predict_proba([[0, 0, 0, 0, 1, 0, 1, 1, 1]])[0][1] >= 0.95
+
+    # TODO: fitting more models for model multiplicity results
+    model_refits_batch0 = []
+    for ii in range(nr_refits_batch0):
+        model_tmp = clone(model)
+        model_tmp.fit(batches[0][0], batches[0][1])
+        model_refits_batch0.append(model_tmp)
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 
@@ -253,6 +260,13 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             predict_batch2 = model_post.predict(X_batch2_post_impl.loc[recourse_recommended_ixs, :])
             eta_obs_batch2 = np.mean(predict_batch2)
 
+            # access acceptance for batch 1 with multiplicity models (without distribution shift)
+            eta_obs_refits_batch0 = []
+            for ii in range(nr_refits_batch0):
+                predict_batch1 = model_refits_batch0[ii].predict(batches[1][0])
+                eta_obs_refit_batch0 = np.mean(predict_batch1)
+                eta_obs_refits_batch0.append(eta_obs_refit_batch0)
+
             # save additional stats in the stats.json
             logging.info('Saving additional stats.')
             try:
@@ -261,6 +275,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
                 # add further information to the statistics
                 stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+                stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
+
                 if model_type == 'logreg':
                     stats['model_coef'] = model.coef_.tolist()
                     stats['model_coef'].append(model.intercept_.tolist())
