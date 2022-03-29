@@ -161,16 +161,17 @@ def compile_experiments(savepath, dirs=None):
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])
     df_invs_resultss.to_csv(base_base_path + 'invs_resultss.csv')
 
-    df_coefs.set_index(['t_type', 'r_type', 'it'], inplace=True)
-    df_coefs_refits.set_index(['t_type', 'r_type', 'it'], inplace=True)
+    if len(df_coefs.columns) > 0:
+        df_coefs.set_index(['t_type', 'r_type', 'it'], inplace=True)
+        df_coefs_refits.set_index(['t_type', 'r_type', 'it'], inplace=True)
 
-    df_coefs_mean = df_coefs.groupby(['t_type', 'r_type']).mean()
-    df_coefs_refits_mean = df_coefs_refits.groupby(['t_type', 'r_type']).mean()
+        df_coefs_mean = df_coefs.groupby(['t_type', 'r_type']).mean()
+        df_coefs_refits_mean = df_coefs_refits.groupby(['t_type', 'r_type']).mean()
 
-    df_coefs.to_csv(base_base_path + 'model_coefs.csv')
-    df_coefs_refits.to_csv(base_base_path + 'model_coefs_refits.csv')
-    df_coefs_mean.to_csv(base_base_path + 'model_coefs_mean.csv')
-    df_coefs_refits_mean.to_csv(base_base_path + 'model_coefs_refits_mean.csv')
+        df_coefs.to_csv(base_base_path + 'model_coefs.csv')
+        df_coefs_refits.to_csv(base_base_path + 'model_coefs_refits.csv')
+        df_coefs_mean.to_csv(base_base_path + 'model_coefs_mean.csv')
+        df_coefs_refits_mean.to_csv(base_base_path + 'model_coefs_refits_mean.csv')
 
 
 if __name__ == '__main__':
