@@ -136,7 +136,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
     model = None
     if model_type == 'logreg':
-        model = LogisticRegression(**kwargs_model)
+        model = LogisticRegression(penalty='none', **kwargs_model)
     elif model_type == 'rf':
         model = RandomForestClassifier(n_estimators=5, **kwargs_model)
     else:
@@ -325,7 +325,6 @@ if __name__ == '__main__':
     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
-    parser.add_argument("--C", help='inverse of regularization strengh', default=10**6, type=float)
 
     args = parser.parse_args()
 
@@ -352,6 +351,6 @@ if __name__ == '__main__':
                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
                    scm_loadpath=args.scm_loadpath, scm_type=args.scm_type,
                    predict_individualized=args.predict_individualized,
-                   model_type=args.model_type, C=args.C)
+                   model_type=args.model_type)
 
     compile_experiments(args.savepath)
