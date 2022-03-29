@@ -141,7 +141,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     if model_type == 'logreg':
         model = LogisticRegression(penalty='none', **kwargs_model)
     elif model_type == 'rf':
-        model = RandomForestClassifier(n_estimators=5, **kwargs_model)
+        model = RandomForestClassifier(n_estimators=1, max_depth=1, **kwargs_model)
     else:
         raise NotImplementedError('model type {} not implemented'.format(model_type))
     model.fit(batches[0][0], batches[0][1])
