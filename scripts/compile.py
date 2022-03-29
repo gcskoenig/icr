@@ -1,6 +1,7 @@
 import pandas as pd
 import json
 import os
+import numpy as np
 
 import logging
 import argparse
@@ -76,20 +77,21 @@ def compile_experiments(savepath, dirs=None):
                         stats_series = pd.Series(stats)
                         df = df.append(stats_series[cols], ignore_index=True)
 
-                        coefs = pd.Series(stats_series['model_coef'][0] + stats_series['model_coef'][1])
-                        coefs_refit = pd.Series(stats_series['model_coef_refit'][0] +
-                                                stats_series['model_coef_refit'][1])
+                        if not np.isnan(stats_series['model_coef'][0]):
+                            coefs = pd.Series(stats_series['model_coef'][0] + stats_series['model_coef'][1])
+                            coefs_refit = pd.Series(stats_series['model_coef_refit'][0] +
+                                                    stats_series['model_coef_refit'][1])
 
-                        coefs['t_type'] = t_type
-                        coefs['r_type'] = r_type
-                        coefs['it'] = int(it)
+                            coefs['t_type'] = t_type
+                            coefs['r_type'] = r_type
+                            coefs['it'] = int(it)
 
-                        coefs_refit['t_type'] = t_type
-                        coefs_refit['r_type'] = r_type
-                        coefs_refit['it'] = int(it)
+                            coefs_refit['t_type'] = t_type
+                            coefs_refit['r_type'] = r_type
+                            coefs_refit['it'] = int(it)
 
-                        df_coefs = df_coefs.append(coefs, ignore_index=True)
-                        df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
+                            df_coefs = df_coefs.append(coefs, ignore_index=True)
+                            df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
 
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(itpath + '_stats.json'))
