@@ -220,6 +220,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
 
             # create a large dataset with mixed pre- and post-recourse data
+            logging.info("Create dataset mixed batch 0 pre and batch 1 post recourse")
             X_train_large = batches[0][0].copy()
             y_train_large = batches[0][1].copy()
 
@@ -227,14 +228,15 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             y_batch1_post = batches[1][1].copy()
             X_batch1_post_impl = result_tpl[5]
             y_batch1_post_impl = result_tpl[6]
-            X_batch1_post.iloc[X_batch1_post_impl.index, :] = X_batch1_post_impl
-            y_batch1_post.iloc[y_batch1_post_impl.index] = y_batch1_post_impl
+            X_batch1_post.loc[X_batch1_post_impl.index, :] = X_batch1_post_impl
+            y_batch1_post.loc[y_batch1_post_impl.index] = y_batch1_post_impl
 
             X_train_large = X_train_large.append(X_batch1_post, ignore_index=True)
             y_train_large = y_train_large.append(y_batch1_post, ignore_index=True)
 
             # fit a separate model on batch0_pre and batch1_post
 
+            logging.info('Fit model on mixed dataset')
             model_post = None
             if model_type == 'logreg':
                 model_post = LogisticRegression()
@@ -246,7 +248,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             model_post.fit(X_train_large, y_train_large)
 
             # perform recourse on batch 1
-            logging.info('Perform recourse on batch 1')
+            logging.info('Perform recourse on batch 2')
+
             result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
                                                     proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                                     thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
