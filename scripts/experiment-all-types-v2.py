@@ -251,8 +251,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
                                                     proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                                     thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
                                                     predict_individualized=predict_individualized)
-            X_batch2_post_impl, y_batch2_post_impl = result_tpl[5], result_tpl[6]
-            recourse_recommended_ixs = result_tpl[9]['recourse_recommended_ixs']
+            X_batch2_post_impl, y_batch2_post_impl = result_tpl_batch2[5], result_tpl_batch2[6]
+            recourse_recommended_ixs = result_tpl_batch2[9]['recourse_recommended_ixs']
 
             # save results
             logging.info('Saving results for {}_{} batch2 ...'.format(t_type, r_type))

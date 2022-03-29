@@ -258,7 +258,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     logging.debug('Collecting results...')
     interventions = np.array(interventions)
     interventions = pd.DataFrame(interventions, columns=intv_features)
-    interventions['ix'] = ixs_recourse
+    interventions['ix'] = X.index[ixs_recourse]
     interventions.set_index('ix', inplace=True)
 
     costss = np.array([goal_costs, intv_costs]).T
