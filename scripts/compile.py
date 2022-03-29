@@ -9,8 +9,16 @@ from mcr.causality.scm import BinomialBinarySCM
 
 logging.getLogger().setLevel(logging.INFO)
 
-def compile_experiments(savepath):
+def get_dirs(savepath):
     base_base_path = savepath
+    dirs = [name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name))]
+    return dirs
+
+def compile_experiments(savepath, dirs=None):
+    base_base_path = savepath
+
+    if dirs is None:
+        dirs = get_dirs(savepath)
 
     cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
             'costs', 'lbd', 'thresh', 'r_type', 't_type', 'iteration', 'eta_obs_refit', 'model_coef',
@@ -22,10 +30,8 @@ def compile_experiments(savepath):
     df_resultss = pd.DataFrame([])
     df_invs_resultss = pd.DataFrame([])
 
-    dirs = [name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name))]
-
     for dir in dirs:
-        base_path = base_base_path + dir + '/'
+        base_path = dir
 
         # load scm
         scm = BinomialBinarySCM.load(base_path + 'scm')
