@@ -30,12 +30,15 @@ import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.base import clone
+from sklearn import tree
 from sklearn.model_selection import train_test_split
 import numpy as np
 import math
 import random
 import os
 import argparse
+
+import matplotlib.pyplot as plt
 
 from mcr.causality.dags import DirectedAcyclicGraph
 from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
@@ -150,7 +153,11 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         model_tmp.random_state = np.random.randint(2**16)
         model_tmp.fit(batches[0][0], batches[0][1])
         model_refits_batch0.append(model_tmp)
-        print(model_tmp.coef_)
+
+        fig, axes = plt.subplots(nrows=1, ncols=1, figsize=(4, 4), dpi=800)
+        tree.plot_tree(model_tmp.estimators_[0],
+                       filled=True)
+        plt.show()
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 

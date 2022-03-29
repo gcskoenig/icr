@@ -99,7 +99,7 @@ except Exception as err:
 sigma_high = torch.tensor(0.5)
 sigma_medium = torch.tensor(0.09)
 sigma_low = torch.tensor(0.05)
-sigma_verylow = torch.tensor(0.01)
+sigma_verylow = torch.tensor(0.001)
 
 scm = BinomialBinarySCM(
     dag=DirectedAcyclicGraph(
