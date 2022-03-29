@@ -10,8 +10,8 @@ from mcr.causality.scm import BinomialBinarySCM
 logging.getLogger().setLevel(logging.INFO)
 
 def get_dirs(savepath):
-    base_base_path = savepath
-    dirs = [name for name in os.listdir(base_base_path) if os.path.isdir(os.path.join(base_base_path, name))]
+    dirs = [name for name in os.listdir(savepath) if os.path.isdir(os.path.join(savepath, name))]
+    dirs = [os.path.join(savepath, dir, '') for dir in dirs]
     return dirs
 
 def compile_experiments(savepath, dirs=None):
