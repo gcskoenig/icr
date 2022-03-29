@@ -266,8 +266,9 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
             # access acceptance for batch 1 with multiplicity models (without distribution shift)
             eta_obs_refits_batch0 = []
+            recourse_recommended_ixs_batch1 = result_tpl[9]['recourse_recommended_ixs']
             for ii in range(nr_refits_batch0):
-                predict_batch1 = model_refits_batch0[ii].predict(batches[1][0])
+                predict_batch1 = model_refits_batch0[ii].predict(X_batch1_post.loc[recourse_recommended_ixs, :])
                 eta_obs_refit_batch0 = np.mean(predict_batch1)
                 eta_obs_refits_batch0.append(eta_obs_refit_batch0)
 
