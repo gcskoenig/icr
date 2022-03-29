@@ -328,15 +328,20 @@ if __name__ == '__main__':
                         default="both", type=str)
     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
     parser.add_argument("--predict_individualized", help="use individualized prediction if available",
-                        default=False, type=bool)
+                        default=True, type=bool)
     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
 
     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
+    parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
+                        default=True, type=bool)
 
     args = parser.parse_args()
 
     # set logging settings
     logging.getLogger().setLevel(args.logging_level)
+
+    if args.ignore_np_errs:
+        np.seterr(all="ignore")
 
     # expects that we are in a directory with a subfolder called "experiments"
     # relative save paths
