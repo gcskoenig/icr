@@ -284,7 +284,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
         h_post['h_post_individualized'] = h_post_indiv['h_post_individualized']
 
     for df in [X_post, y_post, interventions, X_pre, y_pre, y_hat_pre, h_post]:
-        df.index = ixs_recourse
+        df.index = X.index[ixs_recourse]
 
     # compute model performance on pre- and post-recourse data
     predict_pre = model.predict(X_pre)
