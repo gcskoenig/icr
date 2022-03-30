@@ -158,7 +158,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
             model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
         else:
             raise NotImplementedError('model type {} not implemented'.format(model_type))
-        model_tmp.fit(batches[0][0], batches[0][1])
+        sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
+        model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
         model_refits_batch0.append(model_tmp)
         if model_type == 'logreg':
             print(model_tmp.coef_)
