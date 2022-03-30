@@ -97,7 +97,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         print(err)
         logging.warning('Creating of directory %s failed' % savepath)
     else:
-        logging.info('Creation of directory %s successful' % savepath)
+        logging.info('Creation of directory %s successful/directory exists already' % savepath)
 
     logging.info('generating problem...')
 
@@ -148,6 +148,12 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
 
     for ii in range(iterations):
+        logging.info('')
+        logging.info('')
+        logging.info('-------------')
+        logging.info('ITERATION {}'.format(ii))
+        logging.info('-------------')
+
         it_path = savepath + '{}/'.format(ii)
         os.mkdir(it_path)
 
@@ -214,6 +220,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         batches[2][1].to_csv(it_path + 'y_val.csv')
 
         for r_type, t_type in all_combinations:
+            logging.info('')
             logging.info("combination: {} {}".format(r_type, t_type))
             savepath_it_config = it_path + '{}-{}/'.format(t_type, r_type)
             os.mkdir(savepath_it_config)

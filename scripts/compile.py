@@ -53,21 +53,22 @@ def compile_experiments(savepath, dirs=None):
         df_coefs = pd.DataFrame([])
         df_coefs_refits = pd.DataFrame([])
 
-        for r_type in r_types:
-            for t_type in t_types:
-                path = base_path
-                path = path + '{}-{}/'.format(t_type, r_type)
+        it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
+        for it in it_dirs:
+            path = base_path
+            path_it = path + '{}/'.format(it)
 
-                it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
-                for it in it_dirs:
+            for r_type in r_types:
+                for t_type in t_types:
+                    path_it_config = path_it + '{}-{}/'.format(t_type, r_type)
 
-                    itpath = path + '{}/'.format(it)
+
                     try:
                         f = None
-                        if 'batch2_stats.json' in os.listdir(itpath):
-                            f = open(itpath + 'batch2_stats.json')
-                        elif 'stats.json' in os.listdir(itpath):
-                            f = open(itpath + 'stats.json')
+                        if 'batch2_stats.json' in os.listdir(path_it_config):
+                            f = open(path_it_config + 'batch2_stats.json')
+                        elif 'stats.json' in os.listdir(path_it_config):
+                            f = open(path_it_config + 'stats.json')
                         else:
                             raise FileNotFoundError('Neither stats.json nor _stats.json found.')
                         stats = json.load(f)
@@ -94,11 +95,11 @@ def compile_experiments(savepath, dirs=None):
                             df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
 
                     except Exception as err:
-                        logging.warning('Could not load file {}'.format(itpath + '_stats.json'))
+                        logging.warning('Could not load file {}'.format(path_it_config + '_stats.json'))
 
                     try:
-                        cost_tmp = pd.read_csv(itpath + 'costss.csv', index_col=0)
-                        invs_tmp = pd.read_csv(itpath + 'invs.csv', index_col=0)
+                        cost_tmp = pd.read_csv(path_it_config + 'costss.csv', index_col=0)
+                        invs_tmp = pd.read_csv(path_it_config + 'invs.csv', index_col=0)
 
                         ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
                         cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
@@ -106,10 +107,10 @@ def compile_experiments(savepath, dirs=None):
                             {'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
                             ignore_index=True)
                     except Exception as err:
-                        logging.warning('Could not load file {}'.format(itpath + 'costss.csv'))
+                        logging.warning('Could not load file {}'.format(path_it_config + 'costss.csv'))
 
                     try:
-                        invs = pd.read_csv(itpath + 'invs.csv', index_col=0)
+                        invs = pd.read_csv(path_it_config + 'invs.csv', index_col=0)
                         ixs_recourse = invs.index[invs.sum(axis=1) > 0]
                         invs = invs.loc[ixs_recourse, :]
                         invs = invs.mean(axis=0).to_dict()
@@ -118,7 +119,7 @@ def compile_experiments(savepath, dirs=None):
                         invs['iteration'] = it
                         df_invs = df_invs.append(invs, ignore_index=True)
                     except Exception as err:
-                        logging.warning('Could not load file {}'.format(itpath + 'invs.csv'))
+                        logging.warning('Could not load file {}'.format(path_it_config + 'invs.csv'))
 
 
         try:
