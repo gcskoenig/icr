@@ -124,6 +124,46 @@ except Exception as exc:
     logging.info(exc)
 
 
+
+# example1 two unrelated
+
+scm_dir = 'example1_two_unrelated/'
+
+try:
+    os.mkdir(savepath + scm_dir)
+except FileExistsError as err:
+    logging.info('Folder already existed:' + savepath + scm_dir)
+except Exception as err:
+    raise err
+
+sigma_high = torch.tensor(0.5)
+sigma_medium = torch.tensor(0.09)
+sigma_low = torch.tensor(0.05)
+sigma_verylow = torch.tensor(0.001)
+
+scm = BinomialBinarySCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 1, 0, 0, 0],
+                                   [0, 0, 1, 0, 0],
+                                   [0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0]]),
+        var_names=['vaccinated', 'covid-free', 'symptom-free', 'entrance', 'assigned-building']
+    ),
+    p_dict={'vaccinated': sigma_high,
+            'symptom-free': sigma_low, 'covid-free': sigma_medium, 'assigned-building': sigma_verylow}
+)
+
+costs = np.array([0.5, 0.1, 0.1, 0.1])
+y_name = 'covid-free'
+scm.set_prediction_target(y_name)
+
+try:
+    scm.save(savepath + scm_dir)
+    np.save(savepath + scm_dir + 'costs.npy', costs)
+except Exception as exc:
+    logging.info(exc)
+
 # # ex2
 #
 # # DEFINE DATA GENERATING MECHANISM
