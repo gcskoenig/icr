@@ -110,60 +110,6 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         scm, y_name = load_problem(scm_loadpath, type=scm_type)
         costs = np.load(scm_loadpath + 'costs.npy')
 
-
-    noise = scm.sample_context(N)
-    df = scm.compute()
-    X = df[df.columns[df.columns != y_name]]
-    y = df[y_name]
-
-    # split into batches
-    batch_size = math.floor(N / 3)
-
-    logging.info('Creating three batches of data with {} observations'.format(batch_size))
-
-    batches = []
-    i = 0
-
-    while i < N:
-        X_i, y_i = X.iloc[i:i + batch_size, :], y.iloc[i:i + batch_size]
-        U_i = noise.iloc[i:i + batch_size, :]
-        batches.append((X_i, y_i, U_i))
-        i += batch_size
-
-    logging.info('Split the data into {} batches'.format(3))
-
-
-    # fitting model on the first batch
-
-    logging.info('Fitting model...')
-
-    model = None
-    if model_type == 'logreg':
-        model = LogisticRegression(penalty='none', **kwargs_model)
-    elif model_type == 'rf':
-        model = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
-    else:
-        raise NotImplementedError('model type {} not implemented'.format(model_type))
-    model.fit(batches[0][0], batches[0][1])
-
-    # refits for multiplicity result
-
-    logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
-    model_refits_batch0 = []
-    for ii in range(nr_refits_batch0):
-        model_tmp = None
-        if model_type == 'logreg':
-            model_tmp = LogisticRegression(penalty='none', **kwargs_model)
-        elif model_type == 'rf':
-            model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
-        else:
-            raise NotImplementedError('model type {} not implemented'.format(model_type))
-        sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
-        model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
-        model_refits_batch0.append(model_tmp)
-        if model_type == 'logreg':
-            print(model_tmp.coef_)
-
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 
     problem_setup = {'N': N, 'N_nodes': N_nodes, 'p': p, 'max_uncertainty': max_uncertainty,
@@ -182,14 +128,6 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
     # np.save(savepath + 'model_coef.npy', np.array(model.coef_))
     # scm
     scm.save(savepath + 'scm')
-    # data
-    batches[0][0].to_csv(savepath + 'X_train.csv')
-    batches[0][1].to_csv(savepath + 'y_train.csv')
-    batches[1][0].to_csv(savepath + 'X_test.csv')
-    batches[1][1].to_csv(savepath + 'y_test.csv')
-    batches[2][0].to_csv(savepath + 'X_val.csv')
-    batches[2][1].to_csv(savepath + 'y_val.csv')
-
 
     # run all types of recourse on the setting
     logging.info('Run all types of recourse...')
@@ -207,14 +145,77 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         for t_type in t_types:
             all_combinations.append((r_type, t_type))
 
-    for r_type, t_type in all_combinations:
-        logging.info("combination: {} {}".format(r_type, t_type))
-        savepath_config_type = savepath_config + '{}-{}/'.format(t_type, r_type)
-        os.mkdir(savepath_config_type)
 
-        for ii in range(iterations):
-            it_path = savepath_config_type + '{}/'.format(ii)
-            os.mkdir(it_path)
+    for ii in range(iterations):
+        it_path = savepath + '{}/'.format(ii)
+        os.mkdir(it_path)
+
+        # sample data
+        noise = scm.sample_context(N)
+        df = scm.compute()
+        X = df[df.columns[df.columns != y_name]]
+        y = df[y_name]
+
+        # split into batches
+        batch_size = math.floor(N / 3)
+
+        logging.info('Creating three batches of data with {} observations'.format(batch_size))
+
+        batches = []
+        i = 0
+
+        while i < N:
+            X_i, y_i = X.iloc[i:i + batch_size, :], y.iloc[i:i + batch_size]
+            U_i = noise.iloc[i:i + batch_size, :]
+            batches.append((X_i, y_i, U_i))
+            i += batch_size
+
+        logging.info('Split the data into {} batches'.format(3))
+
+        # fitting model on the first batch
+
+        logging.info('Fitting model...')
+
+        model = None
+        if model_type == 'logreg':
+            model = LogisticRegression(penalty='none', **kwargs_model)
+        elif model_type == 'rf':
+            model = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+        else:
+            raise NotImplementedError('model type {} not implemented'.format(model_type))
+        model.fit(batches[0][0], batches[0][1])
+
+        # refits for multiplicity result
+
+        logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
+        model_refits_batch0 = []
+        for ii in range(nr_refits_batch0):
+            model_tmp = None
+            if model_type == 'logreg':
+                model_tmp = LogisticRegression(penalty='none', **kwargs_model)
+            elif model_type == 'rf':
+                model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+            else:
+                raise NotImplementedError('model type {} not implemented'.format(model_type))
+            sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
+            model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
+            model_refits_batch0.append(model_tmp)
+            if model_type == 'logreg':
+                print(model_tmp.coef_)
+
+        # save data
+
+        batches[0][0].to_csv(it_path + 'X_train.csv')
+        batches[0][1].to_csv(it_path + 'y_train.csv')
+        batches[1][0].to_csv(it_path + 'X_test.csv')
+        batches[1][1].to_csv(it_path + 'y_test.csv')
+        batches[2][0].to_csv(it_path + 'X_val.csv')
+        batches[2][1].to_csv(it_path + 'y_val.csv')
+
+        for r_type, t_type in all_combinations:
+            logging.info("combination: {} {}".format(r_type, t_type))
+            savepath_it_config = it_path + '{}-{}/'.format(t_type, r_type)
+            os.mkdir(savepath_it_config)
 
             # perform recourse on batch 1
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
@@ -224,10 +225,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
             # save results
             logging.info('Saving results for {}_{}...'.format(t_type, r_type))
-            savepath_exp = it_path
-            save_recourse_result(savepath_exp, result_tpl)
+            save_recourse_result(savepath_it_config, result_tpl)
             logging.info('Done.')
-
 
             # create a large dataset with mixed pre- and post-recourse data
             logging.info("Create dataset mixed batch 0 pre and batch 1 post recourse")
@@ -269,7 +268,7 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
 
             # save results
             logging.info('Saving results for {}_{} batch2 ...'.format(t_type, r_type))
-            savepath_batch2 = it_path + 'batch2_'
+            savepath_batch2 = savepath_it_config + 'batch2_'
             save_recourse_result(savepath_batch2, result_tpl_batch2)
             logging.info('Done.')
 
@@ -353,15 +352,15 @@ if __name__ == '__main__':
     if args.ignore_np_errs:
         np.seterr(all="ignore")
 
-    # expects that we are in a directory with a subfolder called "experiments"
-    # relative save paths
-    config_id = random.randint(0, 1024)
-    savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N, config_id)
+    savepath_config = None
 
     n_tries = 0
     done = False
     while n_tries < 5 and not done:
         try:
+            config_id = random.randint(0, 1024)
+            savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N,
+                                                                                 config_id)
             n_tries += 1
             os.mkdir(savepath_config)
             done = True
