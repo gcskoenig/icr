@@ -33,6 +33,7 @@ def compile_experiments(savepath, dirs=None):
 
     for dir in dirs:
         base_path = dir
+        path = base_path
 
         # load scm
         try:
@@ -55,7 +56,6 @@ def compile_experiments(savepath, dirs=None):
 
         it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
         for it in it_dirs:
-            path = base_path
             path_it = path + '{}/'.format(it)
 
             for r_type in r_types:
