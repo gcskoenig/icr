@@ -146,11 +146,18 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
         raise NotImplementedError('model type {} not implemented'.format(model_type))
     model.fit(batches[0][0], batches[0][1])
 
-    # TODO: fitting more models for model multiplicity results
+    # refits for multiplicity result
+
+    logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
     model_refits_batch0 = []
     for ii in range(nr_refits_batch0):
-        model_tmp = clone(model)
-        model_tmp.random_state = np.random.randint(2**16)
+        model_tmp = None
+        if model_type == 'logreg':
+            model_tmp = LogisticRegression(penalty='none', **kwargs_model)
+        elif model_type == 'rf':
+            model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+        else:
+            raise NotImplementedError('model type {} not implemented'.format(model_type))
         model_tmp.fit(batches[0][0], batches[0][1])
         model_refits_batch0.append(model_tmp)
         if model_type == 'logreg':
