@@ -91,7 +91,8 @@ def run_experiment(N_nodes, p, max_uncertainty, min_in_degree, out_degree, seed,
                    scm_loadpath=None, scm_type=None, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, **kwargs_model):
     try:
-        os.mkdir(savepath)
+        if not os.path.exists(savepath):
+            os.mkdir(savepath)
     except OSError as err:
         print(err)
         logging.warning('Creating of directory %s failed' % savepath)
