@@ -38,7 +38,10 @@ In order to reproduce our results, run the following script for ``[gamma]`` 0.95
 ```
 python scripts/experiment-all-types.py [path-to-experiment-folder] [scm-path] [gamma] 6000 5
 ```
-In the ``path-to-results-all-types/`` folder you can then find two files called
+
+6000 is the overall sample size and 5 is the number of experiment iterations.
+
+In the ``[path-to-experiment-folder]`` folder you can then find two files called
 
 - ``resultss.csv``: summary statistics for all experiment folders in the specified result folder. mean and standard deviation for
   - `eta_mean`: specified desired acceptance rate
@@ -54,4 +57,4 @@ In the ``path-to-results-all-types/`` folder you can then find two files called
 
 These values indicate the results presented in the paper.
 
-The experimental results presented in the paper can be found in the folder `[path-to-readme-folder]/results/`.
+The experimental results presented in the paper can be found in the archive `[path-to-readme-folder]/results.zip`.
