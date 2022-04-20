@@ -944,7 +944,7 @@ class GenericSCM(StructuralCausalModel):
         par_values = self._get_parent_values(node)
         noise_values = self.get_noise_values()[[self.u_prefix + node]]
         vals = self.model[node]['fnc'](par_values, noise_values)
-        self.model[node]['values'] = torch.tensor(vals).resize(-1)
+        self.model[node]['values'] = torch.tensor(vals).flatten()
         return self.model[node]['values']
 
 
