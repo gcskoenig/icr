@@ -879,3 +879,20 @@ class SigmoidBinarySCM(BinomialBinarySCM):
 
         res = torch.log(y_1 / (y_1 + y_0))
         return res
+
+
+class GenericSCM(StructuralCausalModel):
+
+    def __init__(self, dag, fnc_dict={}, noise_dict={}, u_prefix='u_'):
+        super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
+
+        for node in self.topological_order:
+            if node not in fnc_dict:
+                fnc_dict[node] = lambda x : x
+            if node not in noise_dict:
+                noise_dict[node] = dist.Normal(0, 1)
+            self.model[node]['fnc'] = fnc_dict[node]
+            self.model[node]['noise_distribution'] = noise_dict[node]
+
+        self.fnc_dict = fnc_dict
+        self.noise_dict = noise_dict
