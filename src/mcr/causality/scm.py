@@ -896,3 +896,22 @@ class GenericSCM(StructuralCausalModel):
 
         self.fnc_dict = fnc_dict
         self.noise_dict = noise_dict
+
+    def save(self, filepath):
+        self.dag.save(filepath)
+        fnc_dict = {}
+        noise_dict = {}
+        for node in self.dag.var_names:
+            fnc_dict[node] = self.model[node]['fnc']
+            noise_dict[node] = self.model[node]['noise_distribution']
+        scm_dict = {}
+        scm_dict['fnc_dict'] = fnc_dict
+        scm_dict['noise_dict'] = noise_dict
+        scm_dict['y_name'] = self.predict_target
+
+        try:
+            with open(filepath + '_p_dict.json', 'w') as f:
+                json.dump(scm_dict, f)
+        except Exception as exc:
+            logging.warning('Could not save p_dict.json')
+            logging.info('Exception: {}'.format(exc))
