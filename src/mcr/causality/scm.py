@@ -106,12 +106,14 @@ class StructuralCausalModel:
         else:
             return context_0.shape[0]
 
-    def get_values(self):
+    def get_values(self, var_names=None):
         """
         Returns the current state values in a pandas.DataFrame (endogenous variables only).
         """
-        arr = torch.stack([self.model[node]['values'] for node in self.dag.var_names], dim=1).numpy()
-        df = pd.DataFrame(arr, columns=self.dag.var_names)
+        if var_names is None:
+            var_names = self.dag.var_names
+        arr = torch.stack([self.model[node]['values'] for node in var_names], dim=1).numpy()
+        df = pd.DataFrame(arr, columns=var_names)
         return df
 
     def get_noise_values(self):
@@ -925,8 +927,8 @@ class GenericSCM(StructuralCausalModel):
         raise NotImplementedError('Not implemented yet')
 
     def _get_parent_values(self, node):
-        df = self.get_values()
-        return df[self.model[node]['parents']]
+        df = self.get_values(var_names=self.model[node]['parents'])
+        return df
 
     def compute_node(self, node):
         par_values = self._get_parent_values(node)
