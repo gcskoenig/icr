@@ -112,9 +112,12 @@ class StructuralCausalModel:
         """
         if var_names is None:
             var_names = self.dag.var_names
-        arr = torch.stack([self.model[node]['values'] for node in var_names], dim=1).numpy()
-        df = pd.DataFrame(arr, columns=var_names)
-        return df
+        if len(var_names) > 0:
+            arr = torch.stack([self.model[node]['values'] for node in var_names], dim=1).numpy()
+            df = pd.DataFrame(arr, columns=var_names)
+            return df
+        else:
+            return pd.DataFrame([])
 
     def get_noise_values(self):
         """
