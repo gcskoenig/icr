@@ -893,7 +893,8 @@ class GenericSCM(StructuralCausalModel):
 
         for node in self.topological_order:
             if node not in fnc_dict:
-                fnc_dict[node] = lambda df: df[self.model[node]['parents']].mean(axis=1)
+                fnc = lambda df_par, df_noise: df_par[self.model[node]['parents']].mean(axis=1) + df_noise[u_prefix+node].mean(axis=1)
+                fnc_dict[node] = fnc
             if node not in noise_dict:
                 noise_dict[node] = dist.Normal(0, 1)
             self.model[node]['fnc'] = fnc_dict[node]
@@ -935,7 +936,8 @@ class GenericSCM(StructuralCausalModel):
 
     def compute_node(self, node):
         par_values = self._get_parent_values(node)
-        vals = self.model[node]['fnc'](par_values)
+        noise_values = self.get_noise_values()[self.u_prefix + node]
+        vals = self.model[node]['fnc'](par_values, noise_values)
         self.model[node]['values'] = torch.tensor(vals).resize(-1)
         return self.model[node]['values']
 
