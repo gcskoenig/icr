@@ -894,8 +894,8 @@ class GenericSCM(StructuralCausalModel):
         for node in self.topological_order:
             if node not in fnc_dict:
                 def fnc(df_par, df_noise):
-                    mean_noise = df_noise[u_prefix+node].to_numpy().mean(axis=1)
-                    mean_pars = df_par[self.model[node]['parents']].to_numpy().mean(axis=1)
+                    mean_noise = df_noise.to_numpy().mean(axis=1)
+                    mean_pars = df_par.to_numpy().mean(axis=1)
                     result = mean_noise
                     if mean_pars.shape[0] > 0:
                         result += mean_pars
