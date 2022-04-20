@@ -888,7 +888,7 @@ class GenericSCM(StructuralCausalModel):
 
         for node in self.topological_order:
             if node not in fnc_dict:
-                fnc_dict[node] = lambda x : x
+                fnc_dict[node] = lambda df: df[self.model[node]['parents']].mean(axis=1)
             if node not in noise_dict:
                 noise_dict[node] = dist.Normal(0, 1)
             self.model[node]['fnc'] = fnc_dict[node]
@@ -898,20 +898,41 @@ class GenericSCM(StructuralCausalModel):
         self.noise_dict = noise_dict
 
     def save(self, filepath):
-        self.dag.save(filepath)
-        fnc_dict = {}
-        noise_dict = {}
-        for node in self.dag.var_names:
-            fnc_dict[node] = self.model[node]['fnc']
-            noise_dict[node] = self.model[node]['noise_distribution']
-        scm_dict = {}
-        scm_dict['fnc_dict'] = fnc_dict
-        scm_dict['noise_dict'] = noise_dict
-        scm_dict['y_name'] = self.predict_target
+        raise NotImplementedError('Not implemented yet.')
+        # self.dag.save(filepath)
+        # fnc_dict = {}
+        # noise_dict = {}
+        # for node in self.dag.var_names:
+        #     fnc_dict[node] = self.model[node]['fnc']
+        #     noise_dict[node] = self.model[node]['noise_distribution']
+        # scm_dict = {}
+        # scm_dict['fnc_dict'] = fnc_dict
+        # scm_dict['noise_dict'] = noise_dict
+        # scm_dict['y_name'] = self.predict_target
+        #
+        # try:
+        #     with open(filepath + '_scm_dict.json', 'w') as f:
+        #         json.dump(scm_dict, f)
+        # except Exception as exc:
+        #     logging.warning('Could not save scm_dict.json')
+        #     logging.info('Exception: {}'.format(exc))
 
-        try:
-            with open(filepath + '_p_dict.json', 'w') as f:
-                json.dump(scm_dict, f)
-        except Exception as exc:
-            logging.warning('Could not save p_dict.json')
-            logging.info('Exception: {}'.format(exc))
+    @staticmethod
+    def load(filepath):
+        raise NotImplementedError('Not implemented yet.')
+
+    def predict_log_prob_obs(self, x_pre, y_name, y=1):
+        raise NotImplementedError('Not implemented yet')
+
+    def _get_parent_values(self, node):
+        df = self.get_values()
+        return df[self.model[node]['parents']]
+
+    def compute_node(self, node):
+        par_values = self._get_parent_values(node)
+        vals = self.model[node]['fnc'](par_values)
+        self.model[node]['values'] = torch.tensor(vals).resize(-1)
+        return self.model[node]['values']
+
+
+

@@ -24,3 +24,6 @@ scm = GenericSCM(
 costs = np.array([0.5, 0.1, 0.1, 0.1])
 y_name = 'covid-free'
 scm.set_prediction_target(y_name)
+
+scm.save('')
+scm.dag.save('')
