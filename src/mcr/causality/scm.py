@@ -1,4 +1,6 @@
 import copy
+import random
+
 import networkx as nx
 import pandas as pd
 import torch
@@ -7,18 +9,17 @@ from torch.distributions import Distribution, Normal
 import torch.distributions.constraints as constraints
 import numpy as np
 import json
+import jax.random as jrandom
+import jax.numpy as jnp
 
 from mcr.causality import DirectedAcyclicGraph
 from mcr.estimation import GaussianConditionalEstimator
 from mcr.backend.dist import TransformedUniform
 
-import pyro
-import pyro.distributions as dist
-import pyro.infer
-import pyro.optim
-from pyro.infer import MCMC, NUTS
-from pyro.infer import SVI, Trace_ELBO
-from pyro.optim import ClippedAdam
+import numpyro
+from numpyro.distributions import constraints
+import numpyro.distributions as dist
+from numpyro.infer import MCMC, NUTS
 
 import logging
 
@@ -178,11 +179,16 @@ class StructuralCausalModel:
         Either a torch.Distribution object, a torch.tensor for point-mass distributions or a callable function.
         """
         for node in self.topological_order:
-            if isinstance(self.model[node]['noise_distribution'], Distribution):
+            d = self.model[node]['noise_distribution']
+            if isinstance(d, Distribution):
                 self.model[node]['noise_values'] = self.model[node]['noise_distribution'].sample((size,)).flatten()
-            elif isinstance(self.model[node]['noise_distribution'], Tensor):
+            elif isinstance(d, numpyro.distributions.Distribution):
+                rng_key = jrandom.PRNGKey(random.randint(0, 2**8))
+                vals = self.model[node]['noise_distribution'].sample(rng_key, (size,)).flatten()
+                self.model[node]['noise_values'] = torch.tensor(np.array(vals))
+            elif isinstance(d, Tensor):
                 self.model[node]['noise_values'] = self.model[node]['noise_distribution'].repeat(size)
-            elif callable(self.model[node]['noise_distribution']):  # TODO: document this case better.
+            elif callable(d):  # TODO: document this case better.
                 self.model[node]['noise_values'] = self.model[node]['noise_distribution'](self)
             else:
                 raise NotImplementedError('The noise is neither a torch.distributions.Distribution nor torch.Tensor')
@@ -218,7 +224,7 @@ class StructuralCausalModel:
         scm_ = self.do(obs[nds])
         return scm_
 
-    def abduct_node(self, node, obs, scm_partially_abducted=None, **kwargs):
+    def abduct_node(self, node, obs, scm_partially_abducted=None, infer_type='svi', **kwargs):
         """Abduction
 
         Args:
@@ -232,15 +238,29 @@ class StructuralCausalModel:
 
         logger.debug('Abducting noise for: {}'.format(node))
         # check whether node was observed, then only parents necessary for deterministic reconstruction
+        pars_observed = set(self.model[node]['parents']).issubset(set(obs.index))
         if node in obs.index and self.INVERTIBLE:
             # if parents observed then reconstruct deterministically
-            if set(self.model[node]['parents']).issubset(set(obs.index)):
-                logger.debug('\t...by inverting the structural equation given the parents and node.')
+            if pars_observed:
+                logger.debug('\t...by inverting the structural equation | x_pa, x_j.')
                 return self._abduct_node_par(node, obs, **kwargs)
             # if not all parents observed then the noise is dependent on the unobserved parent
             else:
                 logger.debug('\t...as function of the parents noise.')
                 return self._abduct_node_par_unobs(node, obs, scm_partially_abducted, **kwargs)
+        elif node in obs.index and not self.INVERTIBLE:
+            if pars_observed:
+                if infer_type == 'svi':
+                    logger.debug('\t...using svi | x_pa, x_j')
+                    return self._abduct_node_par_svi(node, obs, **kwargs)
+                elif infer_type == 'mcmc':
+                    logger.debug('\t...using mcmc | x_pa, x_j')
+                    return self._abduct_node_par_mcmc(node, obs, **kwargs)
+                else:
+                    raise NotImplementedError('type not implemented')
+            else:
+                logger.debug('\t...using svi | as function of the parents noise.')
+                raise NotImplementedError('Not implemented yet.')
         elif node not in obs.index:
             logger.debug('\t...using analytical formula and MC integration.')
             return self._abduct_node_obs(node, obs, **kwargs)
@@ -444,31 +464,31 @@ class BinomialBinarySCM(StructuralCausalModel):
         # noise_vals = pd.read_csv(filepath + '_noise_vals.csv')
         return scm
 
-    def _get_pyro_model(self, target_node):
-        """
-        Returns pyro model where the target node is modeled as deterministic function of
-        a probabilistic noise term, whereas all other nodes are directly modeled as
-        probabilistic variables (such that other variables can be observed and the
-        noise term can be inferred).
-        """
-        def pyro_model():
-            var_dict = {}
-            for node in self.topological_order:
-                input = torch.tensor(0.0)
-                for par in self.model[node]['parents']:
-                    input = input + var_dict[par]
-                input = torch.remainder(input, 2)
-                if node != target_node:
-                    prob = (1.0 - input) * self.p_dict[node] + input * (1 - self.p_dict[node])
-                    var = pyro.sample(node, dist.Binomial(probs=prob))
-                    var_dict[node] = var.flatten()
-                else:
-                    noise = pyro.sample('u_'+node, dist.Binomial(probs=self.p_dict[node]))
-                    var = torch.remainder(input + noise, 2)
-                    var_dict[node] = var.flatten()
-            return var_dict
-
-        return pyro_model
+    # def _get_pyro_model(self, target_node):
+    #     """
+    #     Returns pyro model where the target node is modeled as deterministic function of
+    #     a probabilistic noise term, whereas all other nodes are directly modeled as
+    #     probabilistic variables (such that other variables can be observed and the
+    #     noise term can be inferred).
+    #     """
+    #     def pyro_model():
+    #         var_dict = {}
+    #         for node in self.topological_order:
+    #             input = torch.tensor(0.0)
+    #             for par in self.model[node]['parents']:
+    #                 input = input + var_dict[par]
+    #             input = torch.remainder(input, 2)
+    #             if node != target_node:
+    #                 prob = (1.0 - input) * self.p_dict[node] + input * (1 - self.p_dict[node])
+    #                 var = pyro.sample(node, dist.Binomial(probs=prob))
+    #                 var_dict[node] = var.flatten()
+    #             else:
+    #                 noise = pyro.sample('u_'+node, dist.Binomial(probs=self.p_dict[node]))
+    #                 var = torch.remainder(input + noise, 2)
+    #                 var_dict[node] = var.flatten()
+    #         return var_dict
+    #
+    #     return pyro_model
 
     def _linear_comb_parents(self, node, obs=None):
         linear_comb = 0.0
@@ -890,22 +910,181 @@ class SigmoidBinarySCM(BinomialBinarySCM):
         return res
 
 
+# class GenericSCM(StructuralCausalModel):
+#
+#     SMALL_VAR = 0.0001
+#
+#     def __init__(self, dag, fnc_dict={}, noise_dict={}, u_prefix='u_'):
+#         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
+#
+#         for node in self.topological_order:
+#             if node not in fnc_dict:
+#                 def fnc(x_pa, u_j):
+#                     assert type(x_pa) == torch.Tensor and type(u_j) == torch.Tensor
+#                     if x_pa.shape[1] > 0:
+#                         mean_pars = torch.mean(x_pa, axis=1)
+#                         result = mean_pars + u_j
+#                         return result
+#                     else:
+#                         return u_j
+#                 fnc_dict[node] = fnc
+#             if node not in noise_dict:
+#                 noise_dict[node] = dist.Normal(0, 1)
+#             self.model[node]['fnc'] = fnc_dict[node]
+#             self.model[node]['noise_distribution'] = noise_dict[node]
+#
+#         self.fnc_dict = fnc_dict
+#         self.noise_dict = noise_dict
+#
+#     def save(self, filepath):
+#         raise NotImplementedError('Not implemented yet.')
+#         # self.dag.save(filepath)
+#         # fnc_dict = {}
+#         # noise_dict = {}
+#         # for node in self.dag.var_names:
+#         #     fnc_dict[node] = self.model[node]['fnc']
+#         #     noise_dict[node] = self.model[node]['noise_distribution']
+#         # scm_dict = {}
+#         # scm_dict['fnc_dict'] = fnc_dict
+#         # scm_dict['noise_dict'] = noise_dict
+#         # scm_dict['y_name'] = self.predict_target
+#         #
+#         # try:
+#         #     with open(filepath + '_scm_dict.json', 'w') as f:
+#         #         json.dump(scm_dict, f)
+#         # except Exception as exc:
+#         #     logging.warning('Could not save scm_dict.json')
+#         #     logging.info('Exception: {}'.format(exc))
+#
+#     @staticmethod
+#     def _mcmc(num_samples, warmup_steps, num_chains, model, *args):
+#         nuts_kernel = NUTS(model, jit_compile=False)
+#         mcmc = MCMC(
+#             nuts_kernel,
+#             num_samples=num_samples,
+#             warmup_steps=warmup_steps,
+#             num_chains=num_chains,
+#         )
+#         mcmc.run(*args)
+#         # mcmc.summary(prob=0.5)
+#         return mcmc
+#
+#     @staticmethod
+#     def _svi(optimization_steps, model, guide, *args):
+#         pyro.clear_param_store()
+#         my_svi = SVI(model=model,
+#                      guide=guide,
+#                      optim=ClippedAdam({"lr": 0.001}),
+#                      loss=Trace_ELBO())
+#
+#         for i in range(optimization_steps):
+#             loss = my_svi.step(*args)
+#             if (i % 100 == 0):
+#                 print(f'iter: {i}, loss: {round(loss, 2)}', end="\r")
+#
+#     @staticmethod
+#     def load(filepath):
+#         raise NotImplementedError('Not implemented yet.')
+#
+#     def predict_log_prob_obs(self, x_pre, y_name, y=1):
+#         raise NotImplementedError('Not implemented yet')
+#
+#     def _get_parent_values(self, node):
+#         vals = []
+#         for par in self.model[node]['parents']:
+#             vals.append(self.model[par]['values'])
+#         if len(vals) > 0:
+#             x_pa = torch.stack(vals, dim=1)
+#             return x_pa
+#         else:
+#             return torch.empty(0)
+#
+#     def compute_node(self, node):
+#         par_values = self._get_parent_values(node)
+#         noise_values = self.model[node]['noise_values']
+#         vals = self.model[node]['fnc'](par_values, noise_values)
+#         self.model[node]['values'] = vals.flatten()
+#         return self.model[node]['values']
+#
+#     def _abduct_node_par_mcmc(self, node, obs, warmup_steps=100, nr_samples=200,
+#                               nr_chains=1, **kwargs):
+#         # parent and node were observed
+#         def model(x_pa):
+#             u_j_dist = self.model[node]['noise_distribution']
+#             u_j = pyro.sample("u_j", u_j_dist).reshape(1,)
+#             x_j = self.model[node]['fnc'](x_pa, u_j)
+#             x_j = pyro.sample("x_j", dist.Normal(x_j, GenericSCM.SMALL_VAR))
+#
+#         model_c = pyro.condition(model, data={node: obs[node]})
+#         x_pa = torch.tensor(obs.to_frame().T[list(self.model[node]['parents'])].to_numpy())
+#         mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains, model_c, x_pa)
+#
+#
+#         type_dist = type(self.model[node]['noise_distribution'])
+#         smpl = mcmc_res.get_samples(5000)['u_j']
+#         if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
+#             return dist.Normal(smpl.mean(), smpl.std())
+#         elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
+#             return dist.Binomial(probs=smpl.mean())
+#
+#     def _abduct_node_par_svi(self, node, obs, svi_steps=10**3, **kwargs):
+#         # parent and node were observed
+#         def model(x_pa):
+#             u_j_dist = self.model[node]['noise_distribution']
+#             u_j = pyro.sample("u_j", u_j_dist).reshape(1,)
+#             x_j = self.model[node]['fnc'](x_pa, u_j)
+#             x_j = pyro.sample("x_j", dist.Normal(x_j, GenericSCM.SMALL_VAR))
+#
+#         type_dist = type(self.model[node]['noise_distribution'])
+#
+#         def guide(x_pa):
+#             if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
+#                 mu = pyro.param("mu", torch.zeros(1))
+#                 std = pyro.param("std", torch.ones(1), constraint=constraints.positive)
+#                 u_j = pyro.sample('u_j', dist.Normal(mu, std))
+#             elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
+#                 probs = pyro.param("probs", torch.tensor(0.5), constraint=constraints.interval(0, 1))
+#                 u_j = pyro.sample('u_j', dist.Binomial(probs=probs))
+#             else:
+#                 raise NotImplementedError(type_dist + ' not supported.')
+#             x_j = self.model[node]['fnc'](x_pa, u_j)
+#             x_j = pyro.sample("x_j", dist.Normal(x_j, GenericSCM.SMALL_VAR))
+#
+#         model_c = pyro.condition(model, data={node: obs[node]})
+#         x_pa = torch.tensor(obs.to_frame().T[list(self.model[node]['parents'])].to_numpy())
+#         GenericSCM._svi(svi_steps, model_c, guide, x_pa)
+#
+#         # create result distribution
+#         if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
+#             return dist.Normal(pyro.param('mu'), pyro.param('std'))
+#         elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
+#             return dist.Binomial(probs=pyro.param('probs'))
+#
+#     def _abduct_node_par_unobs(self, node, obs, scm_abd, **kwargs):
+#         # one parent not observed, but parents of the parent were observed
+#         raise NotImplementedError('Not implemented yet')
+#
+#     def _abduct_node_obs(self, node, obs, **kwargs):
+#         # if the node itself was not observed, but all other variables
+#         raise NotImplementedError('Not implemented yet')
+
+
 class GenericSCM(StructuralCausalModel):
 
-    SMALL_VAR = 0.0001
+    SMALL_VAR = 0.01
 
     def __init__(self, dag, fnc_dict={}, noise_dict={}, u_prefix='u_'):
         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
 
         for node in self.topological_order:
             if node not in fnc_dict:
-                def fnc(df_par, df_noise):
-                    mean_noise = df_noise.to_numpy().mean(axis=1)
-                    mean_pars = df_par.to_numpy().mean(axis=1)
-                    result = mean_noise
-                    if mean_pars.shape[0] > 0:
-                        result += mean_pars
-                    return torch.tensor(result)
+                def fnc(x_pa, u_j):
+                    #assert isinstance(x_pa, pd.DataFrame) and isinstance(u_j, pd.DataFrame)
+                    result = u_j.flatten()
+                    if x_pa.shape[1] > 0:
+                        mean_pars = jnp.mean(x_pa, axis=1)
+                        result = mean_pars.flatten() + result
+                    return result
                 fnc_dict[node] = fnc
             if node not in noise_dict:
                 noise_dict[node] = dist.Normal(0, 1)
@@ -917,103 +1096,63 @@ class GenericSCM(StructuralCausalModel):
 
     def save(self, filepath):
         raise NotImplementedError('Not implemented yet.')
-        # self.dag.save(filepath)
-        # fnc_dict = {}
-        # noise_dict = {}
-        # for node in self.dag.var_names:
-        #     fnc_dict[node] = self.model[node]['fnc']
-        #     noise_dict[node] = self.model[node]['noise_distribution']
-        # scm_dict = {}
-        # scm_dict['fnc_dict'] = fnc_dict
-        # scm_dict['noise_dict'] = noise_dict
-        # scm_dict['y_name'] = self.predict_target
-        #
-        # try:
-        #     with open(filepath + '_scm_dict.json', 'w') as f:
-        #         json.dump(scm_dict, f)
-        # except Exception as exc:
-        #     logging.warning('Could not save scm_dict.json')
-        #     logging.info('Exception: {}'.format(exc))
-
-    @staticmethod
-    def _mcmc(num_samples, warmup_steps, num_chains, model, *args):
-        nuts_kernel = NUTS(model, jit_compile=False)
-        mcmc = MCMC(
-            nuts_kernel,
-            num_samples=num_samples,
-            warmup_steps=warmup_steps,
-            num_chains=num_chains,
-        )
-        mcmc.run(*args)
-        # mcmc.summary(prob=0.5)
-        return mcmc
-
-    @staticmethod
-    def _svi(optimization_steps, model, guide, *args):
-        pyro.clear_param_store()
-        my_svi = SVI(model=model,
-                     guide=guide,
-                     optim=ClippedAdam({"lr": 0.001}),
-                     loss=Trace_ELBO())
-
-        for i in range(optimization_steps):
-            loss = my_svi.step(*args)
-            if (i % 100 == 0):
-                print(f'iter: {i}, loss: {round(loss, 2)}', end="\r")
 
     @staticmethod
     def load(filepath):
         raise NotImplementedError('Not implemented yet.')
 
+    @staticmethod
+    def _mcmc(num_samples, warmup_steps, num_chains, model, *args, **kwargs):
+        nuts_kernel = NUTS(model)
+        rng_key = jrandom.PRNGKey(0)
+        mcmc = MCMC(
+            nuts_kernel,
+            num_samples=num_samples,
+            num_warmup=warmup_steps,
+            num_chains=num_chains,
+        )
+        mcmc.run(rng_key, *args, **kwargs)
+        # mcmc.summary(prob=0.5)
+        return mcmc
+
     def predict_log_prob_obs(self, x_pre, y_name, y=1):
         raise NotImplementedError('Not implemented yet')
 
     def _get_parent_values(self, node):
-        df = self.get_values(var_names=self.model[node]['parents'])
-        return df
+        vals = self.get_values(var_names=self.model[node]['parents'])
+        return vals
 
     def compute_node(self, node):
-        par_values = self._get_parent_values(node)
-        noise_values = self.get_noise_values()[[self.u_prefix + node]]
+        par_values = self._get_parent_values(node).to_numpy()
+        noise_values = self.get_noise_values()[[self.u_prefix+node]].to_numpy()
         vals = self.model[node]['fnc'](par_values, noise_values)
-        self.model[node]['values'] = torch.tensor(vals).flatten()
-        return self.model[node]['values']
+        vals = torch.tensor(np.array(vals.flatten()))
+        return vals
 
-    def _abduct_node_par(self, node, obs, svi_steps=10**5, **kwargs):
+    def _abduct_node_par_mcmc(self, node, obs, warmup_steps=1000, nr_samples=1000,
+                              nr_chains=2, **kwargs):
         # parent and node were observed
-        def model(x_pa):
-            assert type(x_pa) is pd.DataFrame
+        def model(x_pa, x_j=None):
             u_j_dist = self.model[node]['noise_distribution']
-            u_j = pyro.sample("u_j", u_j_dist)
-            u_j = pd.DataFrame([u_j], columns=[self.u_prefix + node])
-            x_j = self.model[node]['fnc'](x_pa, u_j)
+            u_j = numpyro.sample("u_j", u_j_dist)
+            input = u_j
+            if np.prod(x_pa.shape) > 0:
+                # input = jnp.mean(x_pa).flatten() + u_j
+                input = self.model[node]['fnc'](x_pa, u_j)
+            x_j = numpyro.sample("x_j", dist.Normal(input, GenericSCM.SMALL_VAR), obs=x_j)
 
-        model_c = pyro.condition(model, data={node: obs[node]})
+        obs_df = obs.to_frame().T
+        x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
+        x_j = obs_df[[node]].to_numpy()
+        mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains, model, x_pa, x_j=x_j)
 
         type_dist = type(self.model[node]['noise_distribution'])
-
-        def guide(x_pa):
-            if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
-                mu = pyro.param("mu", torch.zeros(1))
-                std = pyro.param("std", torch.ones(1), constraint=constraints.positive)
-                u_j = pyro.sample('u_j', dist.Normal(mu, std))
-            elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
-                probs = pyro.param("probs", torch.tensor(0.5), constraint=constraints.interval(0, 1))
-                u_j = pyro.sample('u_j', dist.Binomial(probs=probs))
-            else:
-                raise NotImplementedError(type_dist + ' not supported.')
-            u_j = pd.DataFrame([u_j], columns=[self.u_prefix + node])
-            x_j = self.model[node]['fnc'](x_pa, u_j)
-            x_j = pyro.sample("x_j", dist.Normal(x_j, GenericSCM.SMALL_VAR))
-
-        x_pa = self._get_parent_values()
-
-        GenericSCM._svi(svi_steps, model_c, guide, x_pa)
-
+        mcmc_res.print_summary()
+        smpl = mcmc_res.get_samples(5000)['u_j']
         if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
-            return dist.Normal(pyro.param("mu"), pyro.param("std"))
+            return dist.Normal(smpl.mean(), smpl.std())
         elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
-            return dist.Binomial(probs=pyro.param("std"))
+            return dist.Binomial(probs=smpl.mean())
 
     def _abduct_node_par_unobs(self, node, obs, scm_abd, **kwargs):
         # one parent not observed, but parents of the parent were observed
