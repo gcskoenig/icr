@@ -3,7 +3,8 @@ import networkx as nx
 import pandas as pd
 import torch
 from torch import Tensor
-from torch.distributions import Normal, Distribution
+from torch.distributions import Distribution, Normal
+import torch.distributions.constraints as constraints
 import numpy as np
 import json
 
@@ -15,6 +16,9 @@ import pyro
 import pyro.distributions as dist
 import pyro.infer
 import pyro.optim
+from pyro.infer import MCMC, NUTS
+from pyro.infer import SVI, Trace_ELBO
+from pyro.optim import ClippedAdam
 
 import logging
 
@@ -888,6 +892,8 @@ class SigmoidBinarySCM(BinomialBinarySCM):
 
 class GenericSCM(StructuralCausalModel):
 
+    SMALL_VAR = 0.0001
+
     def __init__(self, dag, fnc_dict={}, noise_dict={}, u_prefix='u_'):
         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
 
@@ -930,6 +936,32 @@ class GenericSCM(StructuralCausalModel):
         #     logging.info('Exception: {}'.format(exc))
 
     @staticmethod
+    def _mcmc(num_samples, warmup_steps, num_chains, model, *args):
+        nuts_kernel = NUTS(model, jit_compile=False)
+        mcmc = MCMC(
+            nuts_kernel,
+            num_samples=num_samples,
+            warmup_steps=warmup_steps,
+            num_chains=num_chains,
+        )
+        mcmc.run(*args)
+        # mcmc.summary(prob=0.5)
+        return mcmc
+
+    @staticmethod
+    def _svi(optimization_steps, model, guide, *args):
+        pyro.clear_param_store()
+        my_svi = SVI(model=model,
+                     guide=guide,
+                     optim=ClippedAdam({"lr": 0.001}),
+                     loss=Trace_ELBO())
+
+        for i in range(optimization_steps):
+            loss = my_svi.step(*args)
+            if (i % 100 == 0):
+                print(f'iter: {i}, loss: {round(loss, 2)}', end="\r")
+
+    @staticmethod
     def load(filepath):
         raise NotImplementedError('Not implemented yet.')
 
@@ -947,5 +979,46 @@ class GenericSCM(StructuralCausalModel):
         self.model[node]['values'] = torch.tensor(vals).flatten()
         return self.model[node]['values']
 
+    def _abduct_node_par(self, node, obs, svi_steps=10**5, **kwargs):
+        # parent and node were observed
+        def model(x_pa):
+            assert type(x_pa) is pd.DataFrame
+            u_j_dist = self.model[node]['noise_distribution']
+            u_j = pyro.sample("u_j", u_j_dist)
+            u_j = pd.DataFrame([u_j], columns=[self.u_prefix + node])
+            x_j = self.model[node]['fnc'](x_pa, u_j)
 
+        model_c = pyro.condition(model, data={node: obs[node]})
 
+        type_dist = type(self.model[node]['noise_distribution'])
+
+        def guide(x_pa):
+            if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
+                mu = pyro.param("mu", torch.zeros(1))
+                std = pyro.param("std", torch.ones(1), constraint=constraints.positive)
+                u_j = pyro.sample('u_j', dist.Normal(mu, std))
+            elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
+                probs = pyro.param("probs", torch.tensor(0.5), constraint=constraints.interval(0, 1))
+                u_j = pyro.sample('u_j', dist.Binomial(probs=probs))
+            else:
+                raise NotImplementedError(type_dist + ' not supported.')
+            u_j = pd.DataFrame([u_j], columns=[self.u_prefix + node])
+            x_j = self.model[node]['fnc'](x_pa, u_j)
+            x_j = pyro.sample("x_j", dist.Normal(x_j, GenericSCM.SMALL_VAR))
+
+        x_pa = self._get_parent_values()
+
+        GenericSCM._svi(svi_steps, model_c, guide, x_pa)
+
+        if type_dist is dist.Normal or type_dist is torch.distributions.Normal:
+            return dist.Normal(pyro.param("mu"), pyro.param("std"))
+        elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
+            return dist.Binomial(probs=pyro.param("std"))
+
+    def _abduct_node_par_unobs(self, node, obs, scm_abd, **kwargs):
+        # one parent not observed, but parents of the parent were observed
+        raise NotImplementedError('Not implemented yet')
+
+    def _abduct_node_obs(self, node, obs, **kwargs):
+        # if the node itself was not observed, but all other variables
+        raise NotImplementedError('Not implemented yet')

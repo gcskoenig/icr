@@ -7,7 +7,7 @@ We used python version ``3.9.7``. We recommend to set up a fresh virtual environ
 
 ### Dependencies
 
-We recommend to install ``torch``, ``scikit-learn``, ``matplotlib``, ``seaborn``,  ``ray`` and ``pyro`` seperately.
+We recommend to install ``torch``, ``scikit-learn``, ``matplotlib``, ``seaborn``,  ``ray``, ``networkx`` and ``pyro`` seperately.
 For torch, follow the instruction on their [website](https://pytorch.org/get-started/locally/).
 For scikit-learn check out [their website](https://scikit-learn.org/stable/install.html).
 For pyro, follow the instructions on their [website](https://docs.pyro.ai/en/0.3.1/installation.html).
