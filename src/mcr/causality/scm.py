@@ -180,7 +180,17 @@ class StructuralCausalModel:
         """
         for node in self.topological_order:
             d = self.model[node]['noise_distribution']
-            if isinstance(d, Distribution):
+            if isinstance(d, numpyro.distributions.Delta):
+                pass
+            elif isinstance(d, numpyro.distributions.MultivariateNormal):
+                # TODO check whether right assignement
+                rng_key = jrandom.PRNGKey(random.randint(0, 2 ** 8))
+                vals = np.array(self.model[node]['noise_distribution'].sample(rng_key, (size,)))
+                self.model[node]['noise_values'] = torch.tensor(vals[:, 0])
+                for jj in range(len(self.model[node]['children'])):
+                    ch = self.model[node]['children'][jj]
+                    self.model[ch]['noise_values'] = torch.tensor(vals[:, jj+1])
+            elif isinstance(d, Distribution):
                 self.model[node]['noise_values'] = self.model[node]['noise_distribution'].sample((size,)).flatten()
             elif isinstance(d, numpyro.distributions.Distribution):
                 rng_key = jrandom.PRNGKey(random.randint(0, 2**8))
@@ -239,6 +249,8 @@ class StructuralCausalModel:
         logger.debug('Abducting noise for: {}'.format(node))
         # check whether node was observed, then only parents necessary for deterministic reconstruction
         pars_observed = set(self.model[node]['parents']).issubset(set(obs.index))
+
+        # NODE OBSERVED AND INVERTIBLE
         if node in obs.index and self.INVERTIBLE:
             # if parents observed then reconstruct deterministically
             if pars_observed:
@@ -248,6 +260,8 @@ class StructuralCausalModel:
             else:
                 logger.debug('\t...as function of the parents noise.')
                 return self._abduct_node_par_unobs(node, obs, scm_partially_abducted, **kwargs)
+
+        # NODE OBSERVED BUT NOT INVERTIBLE
         elif node in obs.index and not self.INVERTIBLE:
             if pars_observed:
                 if infer_type == 'svi':
@@ -259,11 +273,24 @@ class StructuralCausalModel:
                 else:
                     raise NotImplementedError('type not implemented')
             else:
-                logger.debug('\t...using svi | as function of the parents noise.')
-                raise NotImplementedError('Not implemented yet.')
-        elif node not in obs.index:
+                logger.debug('\t...as function of the parents noise')
+                return self._abduct_node_par_unobs(node, obs, **kwargs)
+
+        # NODE NOT OBSERVED AND INVERTIBLE
+        elif node not in obs.index and self.INVERTIBLE:
             logger.debug('\t...using analytical formula and MC integration.')
             return self._abduct_node_obs(node, obs, **kwargs)
+
+        # NODE NOT OBSERVED AND NOT INVERTIBLE
+        elif node not in obs.index and not self.INVERTIBLE:
+            if infer_type == 'svi':
+                logger.debug('\t...using svi | x_pa, x_ch, x_pa(ch)')
+                return self._abduct_node_obs_svi(node, obs, **kwargs)
+            elif infer_type == 'mcmc':
+                logger.debug('\t...using mcmc | x_pa, x_ch, x_pa(ch)')
+                return self._abduct_node_obs_mcmc(node, obs, **kwargs)
+            else:
+                raise NotImplementedError('type not implemented')
         else:
             raise NotImplementedError('No solution for variable observed but not invertible developed yet.')
 
@@ -1071,7 +1098,7 @@ class SigmoidBinarySCM(BinomialBinarySCM):
 
 class GenericSCM(StructuralCausalModel):
 
-    SMALL_VAR = 0.01
+    SMALL_VAR = 0.0001
 
     def __init__(self, dag, fnc_dict={}, noise_dict={}, u_prefix='u_'):
         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
@@ -1087,7 +1114,7 @@ class GenericSCM(StructuralCausalModel):
                     return result
                 fnc_dict[node] = fnc
             if node not in noise_dict:
-                noise_dict[node] = dist.Normal(0, 1)
+                noise_dict[node] = dist.Normal(0, 0.1)
             self.model[node]['fnc'] = fnc_dict[node]
             self.model[node]['noise_distribution'] = noise_dict[node]
 
@@ -1124,13 +1151,13 @@ class GenericSCM(StructuralCausalModel):
 
     def compute_node(self, node):
         par_values = self._get_parent_values(node).to_numpy()
-        noise_values = self.get_noise_values()[[self.u_prefix+node]].to_numpy()
+        noise_values = self.get_noise_values()[[self.u_prefix+node]].to_numpy().flatten()
         vals = self.model[node]['fnc'](par_values, noise_values)
         vals = torch.tensor(np.array(vals.flatten()))
         return vals
 
-    def _abduct_node_par_mcmc(self, node, obs, warmup_steps=1000, nr_samples=1000,
-                              nr_chains=2, **kwargs):
+    def _abduct_node_par_mcmc(self, node, obs, warmup_steps=200, nr_samples=800,
+                              nr_chains=1, **kwargs):
         # parent and node were observed
         def model(x_pa, x_j=None):
             u_j_dist = self.model[node]['noise_distribution']
@@ -1153,11 +1180,53 @@ class GenericSCM(StructuralCausalModel):
             return dist.Normal(smpl.mean(), smpl.std())
         elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
             return dist.Binomial(probs=smpl.mean())
+        else:
+            raise NotImplementedError('distribution type not implemented.')
 
-    def _abduct_node_par_unobs(self, node, obs, scm_abd, **kwargs):
+    def _abduct_node_par_unobs(self, node, obs, **kwargs):
         # one parent not observed, but parents of the parent were observed
-        raise NotImplementedError('Not implemented yet')
+        # ATTENTION: We assume that the noise variable was already abducted together with the unobserved parent's noise
+        return numpyro.distributions.Delta()
 
-    def _abduct_node_obs(self, node, obs, **kwargs):
+    def _abduct_node_obs_mcmc(self, node, obs, warmup_steps=1000, nr_samples=500,
+                              nr_chains=2, **kwargs):
         # if the node itself was not observed, but all other variables
-        raise NotImplementedError('Not implemented yet')
+        def model(x_pa, x_ch_dict=None, x_ch_pa_dict=None):
+            u_j_dist = self.model[node]['noise_distribution']
+            u_j = numpyro.sample("{}{}".format(self.u_prefix, node), u_j_dist)
+            input = u_j
+            if np.prod(x_pa.shape) > 0:
+                # input = jnp.mean(x_pa).flatten() + u_j
+                input = self.model[node]['fnc'](x_pa, u_j)
+            x_j = input
+            for ch in self.model[node]['children']:
+                u_ch_dist = self.model[ch]['noise_distribution']
+                u_ch = numpyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
+                # insert x_j value into parent array
+                ix = list(self.model[ch]['parents']).index(node)
+                x_ch_pa = x_ch_pa_dict[ch]
+                x_ch_pa_mod = x_ch_pa.at[:, ix].set(x_j)
+                x_ch_input = self.model[ch]['fnc'](x_ch_pa_mod, u_ch)
+                x_ch = numpyro.sample("x_{}".format(ch), dist.Normal(x_ch_input, GenericSCM.SMALL_VAR), obs=x_ch_dict[ch])
+
+        obs_df = obs.to_frame().T
+        obs_df_dummy = obs_df.copy()
+        obs_df_dummy[node] = 0.0
+        x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
+        x_ch_dict = {}
+        x_ch_pa_dict = {}
+        for ch in self.model[node]['children']:
+            x_ch_dict[ch] = jnp.array(obs_df[[ch]].to_numpy().flatten())
+            x_ch_pa_dict[ch] = jnp.array(obs_df_dummy[list(self.model[ch]['parents'])].to_numpy())
+
+        mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains, model, x_pa,
+                                    x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
+
+        smpl = mcmc_res.get_samples()
+        arr = np.array([smpl[key].flatten() for key in smpl.keys()]).T
+
+        if isinstance(self.model[node]['noise_distribution'], numpyro.distributions.Normal):
+            mv_dist = numpyro.distributions.MultivariateNormal(loc=np.mean(arr, axis=0), covariance_matrix=np.cov(arr.T))
+            return mv_dist
+        else:
+            raise NotImplementedError('only multivariate normal supported so far')
