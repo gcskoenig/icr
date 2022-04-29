@@ -21,12 +21,14 @@ context.to_csv(savepath + 'context.csv')
 
 num_chains = 1
 
-dfs_dist=[]
+dfs_dist = []
 for warmup_steps in [10, 50]:
+    print(f"warmup_steps: {warmup_steps}")
     for num_samples in [50]:
+        print(f"num_samples: {num_samples}")
         dists = []
         for ii in range(population_size):
-
+            print(f"ii: {ii}")
             t0 = time.time()
             scm_abd = scm.abduct(data.iloc[ii, [0, 1, 3]], infer_type='mcmc',
                                  warmup_steps=warmup_steps, num_samples=num_samples, num_chains=num_chains)
