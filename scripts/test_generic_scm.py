@@ -48,6 +48,7 @@ for temperature in [0, 1]:
                 dist['num_samples'] = num_samples
                 dist['num_chains'] = num_chains
                 dist['warmup_steps'] = warmup_steps
+                dist['temperature'] = temperature
 
                 dists.append(dist)
 
