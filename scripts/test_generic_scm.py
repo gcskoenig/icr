@@ -28,7 +28,7 @@ for warmup_steps in [10, 50]:
         print(f"num_samples: {num_samples}")
         dists = []
         for ii in range(population_size):
-            print(f"ii: {ii}")
+            print(f"ii: {ii}/{population_size}")
             t0 = time.time()
             scm_abd = scm.abduct(data.iloc[ii, [0, 1, 3]], infer_type='mcmc',
                                  warmup_steps=warmup_steps, num_samples=num_samples, num_chains=num_chains)
@@ -51,7 +51,7 @@ for warmup_steps in [10, 50]:
         df_dists = pd.concat(dists, axis=1).T
         df_dists.to_csv(savepath + f"diff_{warmup_steps}_{num_samples}.csv")
 
-        df_dists.reset_index()
+        df_dists = df_dists.reset_index()
         dfs_dist.append(df_dists)
 
 dff = pd.concat(dfs_dist, ignore_index=True)
