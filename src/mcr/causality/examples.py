@@ -32,8 +32,8 @@ y_name = 'y'
 
 ## noise distributions
 
-unif_dist = numpyro.distributions.Uniform(0, 1)
-normal_dist = numpyro.distributions.Normal(0, 1)
+unif_dist = numpyro.distributions.Uniform(low=jnp.array(0.0), high=jnp.array(1.0))
+normal_dist = numpyro.distributions.Normal(loc=jnp.array(0.0), scale=jnp.array(1.0))
 
 mixing_dist = numpyro.distributions.Categorical(probs=jnp.ones(3)/3)
 multinormal_dist = numpyro.distributions.Normal(loc=jnp.array([-4, 0, 4]), scale=jnp.ones([3]))
@@ -61,6 +61,26 @@ def nonlinear_additive(x_pa, u_j, coeffs=None):
     output = input.flatten() + u_j.flatten()
     return output
 
+def sigmoidal_torch(x_pa, u_j):
+    input = torch.mean(x_pa, axis=1).flatten()
+    output = torch.sigmoid(input)
+    return output
+
+def sigmoidal_binomial_torch(x_pa, u_j):
+    input = torch.mean(x_pa, axis=1).flatten()
+    input = torch.sigmoid(input)
+    output = torch.greater_equal(input, u_j.flatten()) * 1.0
+    return output
+
+def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
+    if coeffs is None:
+        coeffs = jnp.ones(x_pa.shape[1])
+    input = 0
+    for jj in range(len(coeffs)):
+        input = input + jnp.power(x_pa[:, jj], jj+1)
+    output = input.flatten() + u_j.flatten()
+    return output
+
 ## SCMs
 
 SCM_3_VAR_CAUSAL = GenericSCM(
@@ -73,7 +93,8 @@ SCM_3_VAR_CAUSAL = GenericSCM(
     ),
     noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
     fnc_dict={y_name: sigmoidal_binomial},
-    binary=['y']
+    fnc_torch_dict={y_name: sigmoidal_binomial_torch},
+    sigmoidal=['y']
 )
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
 
@@ -87,6 +108,7 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
     ),
     noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
     fnc_dict={y_name: sigmoidal_binomial},
-    binary=['y']
+    fnc_torch_dict={y_name: sigmoidal_binomial_torch},
+    sigmoidal=['y']
 )
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)

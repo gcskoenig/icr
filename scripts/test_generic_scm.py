@@ -1,6 +1,11 @@
 import logging
 import mcr.causality.examples as ex
-import numpy as np
+import time
+import pandas as pd
+
+savepath = '~/data/mcr-experiments/test_generic/run1/'
+
+population_size = 2
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -8,102 +13,43 @@ scm = ex.SCM_3_VAR_NONCAUSAL
 y_name = 'y'
 scm.set_prediction_target(y_name)
 
-context = scm.sample_context(1000)
+context = scm.sample_context(population_size)
 data = scm.compute()
-print(1/(1+np.exp(-np.sum(data.iloc[0, :2]))))
-print(context.iloc[0, 3])
 
-scm_abd = scm.abduct(data.iloc[0, [0, 1, 3]], infer_type='mcmc')
-cntxt = scm_abd.sample_context(1000)
-smpl = scm_abd.compute()
+data.to_csv(savepath + 'data.csv')
+context.to_csv(savepath + 'context.csv')
 
-import numpyro
-import jax
+num_chains = 1
 
-pk = jax.random.PRNGKey(42)
+dfs_dist=[]
+for warmup_steps in [10, 50]:
+    for num_samples in [50]:
+        dists = []
+        for ii in range(population_size):
 
-def model():
-    d = numpyro.distributions.Bernoulli(probs=0.5)
-    x = numpyro.sample('x', d, rng_key=pk)
-    return x
+            t0 = time.time()
+            scm_abd = scm.abduct(data.iloc[ii, [0, 1, 3]], infer_type='mcmc',
+                                 warmup_steps=warmup_steps, num_samples=num_samples, num_chains=num_chains)
+            t1 = time.time()
+            time_elapsed = t1 - t0
 
-samples = []
-for ii in range(100):
-    samples.append(model())
+            cntxt = scm_abd.sample_context(10000)
+            post_sample = scm_abd.compute()
 
+            dist = data.iloc[ii, [0, 1, 3]] - (post_sample.describe().loc['mean', ['x1', 'x2', 'x3']])
 
+            dist['y_est'] = post_sample.describe().loc['mean', 'y']
+            dist['time'] = time_elapsed
+            dist['num_samples'] = num_samples
+            dist['num_chains'] = num_chains
+            dist['warmup_steps'] = warmup_steps
 
-for ii in range(10):
-    print(context.iloc[ii])
-    print(data.iloc[ii, :])
-    scm.abduct(data.iloc[ii, [0, 1, 3]], infer_type='mcmc')
+            dists.append(dist)
 
+        df_dists = pd.concat(dists, axis=1).T
+        df_dists.to_csv(savepath + f"diff_{warmup_steps}_{num_samples}")
 
-import matplotlib.pyplot as plt
-import seaborn as sns
-import pandas as pd
-import numpy as np
+        df_dists.reset_index()
+        dfs_dist.append(df_dists)
 
-
-# for jj in range(smpl[list(smpl.keys())[0]].shape[0]):
-#     arr = np.array([smpl[key][jj, :] for key in smpl.keys()]).T
-#
-#     df = pd.DataFrame(arr, columns=smpl.keys())
-#
-#     sns.displot(df, x=df.columns[0], y=df.columns[1])
-#     plt.show()
-#     sns.displot(df['y'])
-#     plt.show()
-#     sns.displot(df['u_x3'])
-#     plt.show()
-
-
-arr = np.array([smpl[key].flatten() for key in smpl.keys()]).T
-df = pd.DataFrame(arr, columns=smpl.keys())
-
-sns.displot(df, x=df.columns[0], y=df.columns[1])
-plt.show()
-sns.displot(df['y'])
-plt.show()
-sns.displot(df['u_x3'])
-plt.show()
-
-
-import numpyro.distributions as dist
-from mcr.backend.dist import MultivariateIndependent
-
-import jax
-import jax.numpy as jnp
-import numpyro
-import numpy as np
-
-jk = jax.random.PRNGKey(42)
-
-d1 = dist.Normal(0, 1)
-d2 = dist.Uniform(0, 1)
-
-dss = [[d2, d1, d2], [d1, d2, d2]]
-
-mixing_dist = dist.Categorical(probs=jnp.ones(2)/2)
-mv_d = MultivariateIndependent(dss)
-mixture = dist.MixtureSameFamily(mixing_dist, mv_d)
-
-smpl = mixture.sample(jk, sample_shape=(300,))
-mixture.log_prob(smpl[10])
-
-x1 = np.random.randn(1000)
-x2 = np.random.randn(1000) + x1
-x3 = np.random.randn(1000) + x2
-arr = np.stack([x1, x2, x3])
-mn = np.mean(arr, axis=1)
-cov = np.cov(arr)
-
-mns = np.stack([mn, mn+3])
-covs = np.stack([cov, cov])
-
-
-mixing_dist = dist.Categorical(probs=jnp.ones(2)/2)
-component_dist = dist.MultivariateNormal(loc=mns, covariance_matrix=covs)
-mixture = dist.MixtureSameFamily(mixing_dist, component_dist)
-
-mixture.sample(jk, sample_shape=(500,))
+dff = pd.concat(dfs_dist, drop_index=True)
