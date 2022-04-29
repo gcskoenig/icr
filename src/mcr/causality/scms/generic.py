@@ -138,7 +138,7 @@ class GenericSCM(StructuralCausalModel):
         # ATTENTION: We assume that the noise variable was already abducted together with the unobserved parent's noise
         return numpyro.distributions.Delta()
 
-    def _abduct_node_obs_discrete(self, node, obs, nr_samples=1000):
+    def _abduct_node_obs_discrete(self, node, obs, nr_samples=1000, temperature=0):
         # prepare data
         obs_df = obs.to_frame().T
         obs_df_dummy = obs_df.copy()
@@ -173,7 +173,7 @@ class GenericSCM(StructuralCausalModel):
                 x_chs.append(x_ch)
             return x_j, x_chs
 
-        xj_posterior_model = pyro.infer.infer_discrete(model_binary, first_available_dim=-1, temperature=1)
+        xj_posterior_model = pyro.infer.infer_discrete(model_binary, first_available_dim=-1, temperature=temperature)
         samples = []
         for jj in range(nr_samples):
             samples.append(xj_posterior_model(x_pa, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)[0].numpy())
