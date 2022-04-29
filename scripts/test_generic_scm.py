@@ -47,7 +47,7 @@ for warmup_steps in [10, 50]:
             dists.append(dist)
 
         df_dists = pd.concat(dists, axis=1).T
-        df_dists.to_csv(savepath + f"diff_{warmup_steps}_{num_samples}")
+        df_dists.to_csv(savepath + f"diff_{warmup_steps}_{num_samples}.csv")
 
         df_dists.reset_index()
         dfs_dist.append(df_dists)
