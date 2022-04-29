@@ -2,7 +2,7 @@ import logging
 import os
 
 import torch
-from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
+from mcr.causality.scms.scm import BinomialBinarySCM
 from mcr.causality.dags import DirectedAcyclicGraph
 import numpy as np
 

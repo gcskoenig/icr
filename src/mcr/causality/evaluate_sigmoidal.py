@@ -1,7 +1,4 @@
-import torch
-from mcr.causality.scm import SigmoidBinarySCM
-from mcr.causality.dags import DirectedAcyclicGraph
-import numpy as np
+from mcr.causality.scms.scm import SigmoidBinarySCM
 
 savepath = 'scms/'
 

@@ -1,12 +1,11 @@
 import pandas as pd
 import json
 import os
-import numpy as np
 
 import logging
 import argparse
 
-from mcr.causality.scm import BinomialBinarySCM
+from mcr.causality.scms.scm import BinomialBinarySCM
 
 logging.getLogger().setLevel(logging.INFO)
 

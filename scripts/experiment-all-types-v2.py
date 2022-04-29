@@ -29,19 +29,14 @@ import json
 import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.base import clone
-from sklearn import tree
-from sklearn.model_selection import train_test_split
 import numpy as np
 import math
 import random
 import os
 import argparse
 
-import matplotlib.pyplot as plt
-
 from mcr.causality.dags import DirectedAcyclicGraph
-from mcr.causality.scm import BinomialBinarySCM, SigmoidBinarySCM
+from mcr.causality.scms.scm import BinomialBinarySCM, SigmoidBinarySCM
 from mcr.recourse import recourse_population, save_recourse_result
 
 from compile import compile_experiments

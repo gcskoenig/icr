@@ -1,10 +1,9 @@
-from mcr.causality.scm import BinomialBinarySCM, GenericSCM
+from mcr.causality.scms import BinomialBinarySCM, GenericSCM
 from mcr.causality.dags import DirectedAcyclicGraph
 import torch
 import numpy as np
 import numpyro
 import jax.numpy as jnp
-import jax
 
 # EXAMPLE 1 SCM
 
@@ -50,7 +49,7 @@ def sigmoidal(x_pa, u_j):
 def sigmoidal_binomial(x_pa, u_j):
     input = jnp.mean(x_pa, axis=1).flatten()
     input = 1/(1 + jnp.exp(-input))
-    output = jnp.greater_equal(input, u_j.flatten())
+    output = jnp.greater_equal(input, u_j.flatten()) * 1.0
     return output
 
 def nonlinear_additive(x_pa, u_j, coeffs=None):
@@ -72,8 +71,9 @@ SCM_3_VAR_CAUSAL = GenericSCM(
                                    [0, 0, 0, 0]]),
         var_names=['x1', 'x2', 'x3', 'y']
     ),
-    noise_dict={'x1': mog_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
-    fnc_dict={y_name: sigmoidal_binomial}
+    noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
+    fnc_dict={y_name: sigmoidal_binomial},
+    binary=['y']
 )
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
 
@@ -85,7 +85,8 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
                                    [0, 0, 0, 0]]),
         var_names=['x1', 'x2', 'y', 'x3']
     ),
-    noise_dict={'x1': mog_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
-    fnc_dict={y_name: sigmoidal_binomial}
+    noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
+    fnc_dict={y_name: sigmoidal_binomial},
+    binary=['y']
 )
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
