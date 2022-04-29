@@ -52,4 +52,5 @@ for warmup_steps in [10, 50]:
         df_dists.reset_index()
         dfs_dist.append(df_dists)
 
-dff = pd.concat(dfs_dist, drop_index=True)
+dff = pd.concat(dfs_dist, ignore_index=True)
+dff.to_csv(savepath + 'dff.csv')
