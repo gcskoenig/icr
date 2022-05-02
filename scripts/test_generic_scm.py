@@ -16,8 +16,36 @@ scm.set_prediction_target(y_name)
 context = scm.sample_context(population_size)
 data = scm.compute()
 
-data.to_csv(savepath + 'data.csv')
-context.to_csv(savepath + 'context.csv')
+temperature = 1
+warmup_steps = 500
+num_samples = 1000
+
+obs = data.iloc[0, [0, 1, 3]]
+gt = context.iloc[0]
+print(obs)
+print(gt)
+
+scm_abd = scm.abduct(obs, infer_type='mcmc', warmup_steps=warmup_steps, num_samples=num_samples,
+                     num_chains=1, temperature=temperature)
+
+import torch
+def compute_expected(obs):
+    py = torch.sigmoid(torch.tensor(obs['x1'] + obs['x2']))
+    dch1 = torch.distributions.Normal(torch.tensor(obs['x1'] + obs['x2'] + 1), torch.tensor(1))
+    pch1 = dch1.log_prob(torch.tensor(obs['x3']))
+    dch0 = torch.distributions.Normal(torch.tensor(obs['x1'] + obs['x2']), torch.tensor(1))
+    pch0 = dch0.log_prob(torch.tensor(obs['x3']))
+
+    c1 = torch.log(py) + pch1
+    c2 = torch.log(1 - py) + pch0
+
+    print(torch.exp(c1), torch.exp(c2))
+    return torch.exp(c1) / (torch.exp(c1) + torch.exp(c2))
+
+print(f"theory: {compute_expected(obs)}, practice: {scm_abd.model['y']['noise_distribution'].mixing_distribution.probs[1]}")
+
+# data.to_csv(savepath + 'data.csv')
+# context.to_csv(savepath + 'context.csv')
 
 num_chains = 1
 
