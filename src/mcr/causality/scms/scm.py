@@ -329,3 +329,26 @@ class StructuralCausalModel:
                 self.model[node]['values'] = self.compute_node(node).reshape(-1)
             assert (~self.model[node]['values'].isnan()).all()
         return self.get_values()
+
+    def predict_log_prob(self, X_pre, y_name=None):
+        """
+        expects vector input
+        returns 2d numpy array with order [0, 1]
+        """
+        if y_name is None:
+            assert not self.predict_target is None
+            y_name = self.predict_target
+        result = np.zeros((X_pre.shape[0], 2))
+        for ii in range(X_pre.shape[0]):
+            log_p_1 = self.predict_log_prob_obs(X_pre.iloc[ii, :], y_name, y=1)
+            result[ii, 1] = log_p_1.item()
+            result[ii, 0] = torch.log(1 - torch.exp(log_p_1)).item()
+        return result
+
+    def predict_log_prob_obs(self, x_pre, y_name, y=1):
+        """P(Y=y|X=x_pre)"""
+        raise NotImplementedError('Not implemented in abstract class')
+
+    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1):
+        """P(Y_post = y | x_pre, x_post)"""
+        raise NotImplementedError('Not implemented in abstract class.')

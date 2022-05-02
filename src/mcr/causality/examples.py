@@ -1,4 +1,4 @@
-from mcr.causality.scms import BinomialBinarySCM, GenericSCM
+from mcr.causality.scms import BinomialBinarySCM, GenericSCM, StructuralFunction
 from mcr.causality.dags import DirectedAcyclicGraph
 import torch
 import numpy as np
@@ -41,16 +41,27 @@ mog_dist = numpyro.distributions.MixtureSameFamily(mixing_dist, multinormal_dist
 
 ## functional relationships
 
-def sigmoidal(x_pa, u_j):
-    input = jnp.mean(x_pa, axis=1).flatten()
-    output = 1/(1 + jnp.exp(-input))
-    return output
+# def sigmoidal(x_pa, u_j):
+#     input = jnp.mean(x_pa, axis=1).flatten()
+#     output = 1/(1 + jnp.exp(-input))
+#     return output
+#
+# sigmoidal = StructuralFunction(sigmoidal, additive=True)
+
+# def sigmoidal_torch(x_pa, u_j):
+#     input = torch.mean(x_pa, axis=1).flatten()
+#     output = torch.sigmoid(input)
+#     return output
+#
+# sigmoidal_torch = StructuralFunction(sigmoidal_torch, additive=True)
 
 def sigmoidal_binomial(x_pa, u_j):
     input = jnp.mean(x_pa, axis=1).flatten()
     input = 1/(1 + jnp.exp(-input))
     output = jnp.greater_equal(input, u_j.flatten()) * 1.0
     return output
+
+sigmoidal_binomial = StructuralFunction(sigmoidal_binomial, additive=True)
 
 def nonlinear_additive(x_pa, u_j, coeffs=None):
     if coeffs is None:
@@ -61,16 +72,15 @@ def nonlinear_additive(x_pa, u_j, coeffs=None):
     output = input.flatten() + u_j.flatten()
     return output
 
-def sigmoidal_torch(x_pa, u_j):
-    input = torch.mean(x_pa, axis=1).flatten()
-    output = torch.sigmoid(input)
-    return output
+nonlinear_additive = StructuralFunction(nonlinear_additive, additive=True)
 
 def sigmoidal_binomial_torch(x_pa, u_j):
     input = torch.mean(x_pa, axis=1).flatten()
     input = torch.sigmoid(input)
     output = torch.greater_equal(input, u_j.flatten()) * 1.0
     return output
+
+sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch, additive=True)
 
 def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
     if coeffs is None:
@@ -80,6 +90,8 @@ def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
         input = input + jnp.power(x_pa[:, jj], jj+1)
     output = input.flatten() + u_j.flatten()
     return output
+
+nonlinear_additive_torch = StructuralFunction(nonlinear_additive_torch, additive=True)
 
 ## SCMs
 
@@ -96,6 +108,7 @@ SCM_3_VAR_CAUSAL = GenericSCM(
     fnc_torch_dict={y_name: sigmoidal_binomial_torch},
     sigmoidal=['y']
 )
+
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
 
 SCM_3_VAR_NONCAUSAL = GenericSCM(
@@ -111,4 +124,5 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
     fnc_torch_dict={y_name: sigmoidal_binomial_torch},
     sigmoidal=['y']
 )
+
 SCM_3_VAR_CAUSAL.set_prediction_target(y_name)

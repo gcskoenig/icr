@@ -119,6 +119,69 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
         return res,
 
 
+def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True,
+                      gamma=None, eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
+    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    creator.create("Individual", list, fitness=creator.FitnessMin)
+
+    IND_SIZE = len(features)
+
+    CX_PROB = 0.3
+    MX_PROB = 0.05
+    NGEN = 100
+
+    toolbox = base.Toolbox()
+    toolbox.register("intervene", random.randint, 0, 1)
+    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
+    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
+
+    toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
+    toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    toolbox.register("select", tools.selNSGA2)
+
+    if t_type == 'acceptance':
+        assert not predict_log_proba is None
+        assert not thresh is None
+        toolbox.register("evaluate", evaluate, predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
+                         subpopulation_size)
+    elif t_type == 'improvement':
+        assert not y_name is None
+        assert not gamma is None
+        toolbox.register("evaluate", evaluate_meaningful, y_name, gamma, scm_, obs, features, costs, lbd, r_type,
+                         subpopulation_size)
+    else:
+        raise NotImplementedError('only t_types acceptance or improvement are available')
+
+    stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
+    stats.register("avg", np.mean, axis=0)
+    stats.register("std", np.std, axis=0)
+    stats.register("min", np.min, axis=0)
+    stats.register("max", np.max, axis=0)
+
+    IND_SIZE_OPTIM = min(3, IND_SIZE)
+
+    pop = toolbox.population(n=IND_SIZE_OPTIM * 10)
+    hof = tools.HallOfFame(IND_SIZE)
+    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE_OPTIM * 5, IND_SIZE_OPTIM * 10, CX_PROB, MX_PROB, NGEN,
+                                  stats=stats, halloffame=hof, verbose=False)
+
+    winner = list(hof)[0]
+
+    goal_cost, intv_cost = None, None
+    if t_type == 'acceptance':
+        goal_cost, intv_cost = evaluate(predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
+                                        subpopulation_size, winner, return_split_cost=True)
+    elif t_type == 'improvement':
+        goal_cost, intv_cost = evaluate_meaningful(y_name, gamma, scm_, obs, features, costs, lbd, r_type,
+                                                   subpopulation_size, winner, return_split_cost=True)
+
+    if cleanup:
+        del creator.FitnessMin
+        del creator.Individual
+
+    return winner, pop, logbook, goal_cost, intv_cost
+
+
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
              eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
@@ -234,7 +297,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
+        winner, pop, logbook, goal_cost, intv_cost = recourse_discrete(scm_, intv_features, obs, costs, r_type, t_type,
                                                               predict_log_proba=predict_log_proba, y_name=y_name,
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
