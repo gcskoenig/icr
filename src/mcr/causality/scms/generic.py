@@ -188,7 +188,9 @@ class GenericSCM(StructuralCausalModel):
             input = torch.sigmoid(input)
             x_j = pyro.sample(node, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "sequential"})
             x_chs = []
-            for ch in self.model[node]['children']: # TODO replace with pyro.plate loop
+            chs = self.model[node]['children']
+            with pyro.plate("child", len(chs)) as ch_ix:
+                ch = chs[ch_ix]
                 # TODO replace v-structure with child-node
                 u_ch_dist_numpyro = self.model[ch]['noise_distribution']
                 u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
