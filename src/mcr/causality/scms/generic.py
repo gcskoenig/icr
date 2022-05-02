@@ -8,37 +8,9 @@ import jax.random as jrandom
 import numpy as np
 import logging
 from mcr.backend.dist import MultivariateIndependent
+from mcr.causality.scms.functions import linear_additive, linear_additive_torch
 
 from mcr.causality.scms._utils import numpyrodist_to_pyrodist
-
-class StructuralFunction:
-
-    def __init__(self, fnc, inv=None, additive=False):
-        self.fnc = fnc
-        self.inv_fnc = inv
-        self.additive = additive
-
-    def __call__(self, *args, **kwargs):
-        return self.fnc(*args, **kwargs)
-
-    def is_invertible(self):
-        return (not self.inv_fnc is None) or (self.additive)
-
-    def inv(self, x_pa, x_j, *args, **kwargs):
-        if self.inv_fnc is None:
-            if self.additive:
-                if isinstance(x_pa, torch.Tensor):
-                    zero = torch.tensor([0.0])
-                else:
-                    zero = jnp.array([0.0])
-                x_j_wo = self.fnc(x_pa, zero)
-                u_j = x_j - x_j_wo
-                return u_j
-            else:
-                raise RuntimeError('Function is not inv')
-        else:
-            return self.inv_fnc(x_pa, x_j, *args, **kwargs)
-
 
 class GenericSCM(StructuralCausalModel):
 
@@ -50,23 +22,9 @@ class GenericSCM(StructuralCausalModel):
 
         for node in self.topological_order:
             if node not in fnc_dict:
-                def fnc(x_pa, u_j):
-                    result = u_j.flatten()
-                    if x_pa.shape[1] > 0:
-                        mean_pars = jnp.sum(x_pa, axis=1)
-                        result = mean_pars.flatten() + result
-                    return result
-                fnc = StructuralFunction(fnc, additive=True)
-                fnc_dict[node] = fnc
+                fnc_dict[node] = linear_additive
             if node not in fnc_torch_dict:
-                def fnc(x_pa, u_j):
-                    result = u_j.flatten()
-                    if x_pa.shape[1] > 0:
-                        mean_pars = torch.sum(x_pa, axis=1)
-                        result = mean_pars.flatten() + result
-                    return result
-                fnc = StructuralFunction(fnc, additive=True)
-                fnc_torch_dict[node] = fnc
+                fnc_torch_dict[node] = linear_additive_torch
             if node not in noise_dict:
                 noise_dict[node] = dist.Normal(0, 0.1)
             # if node not in noise_torch_dict:
@@ -183,36 +141,50 @@ class GenericSCM(StructuralCausalModel):
         obs_df = obs.to_frame().T
         obs_df_dummy = obs_df.copy()
         obs_df_dummy[node] = np.array(0.0)
-        x_pa = torch.tensor(obs_df[list(self.model[node]['parents'])].to_numpy())
+        x_pa = torch.tensor(obs_df[list(self.model[node]['parents'])].to_numpy(), dtype=torch.float64)
         x_ch_dict = {}
         x_ch_pa_dict = {}
         for ch in self.model[node]['children']:
-            x_ch_dict[ch] = torch.tensor(obs_df[[ch]].to_numpy().flatten())
-            x_ch_pa_dict[ch] = torch.tensor(obs_df_dummy[list(self.model[ch]['parents'])].to_numpy())
+            x_ch_dict[ch] = torch.tensor(obs_df[[ch]].to_numpy().flatten(), dtype=torch.float64)
+            x_ch_pa_dict[ch] = torch.tensor(obs_df_dummy[list(self.model[ch]['parents'])].to_numpy(),
+                                            dtype=torch.float64)
 
         # pyro model for discrete inference of the binary target x_j
         def model_binary(x_pa, x_ch_dict=None, x_ch_pa_dict=None):
             input = torch.tensor(0.0)
             if torch.prod(torch.tensor(x_pa.shape)) > 0:
-                # input = jnp.mean(x_pa).flatten() + u_j
                 input = torch.sum(x_pa, axis=1)
             input = torch.sigmoid(input)
-            x_j = pyro.sample(node, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "sequential"})
+            x_j = pyro.sample(node, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "parallel"})
             x_chs = []
             chs = self.model[node]['children']
-            with pyro.plate("child", len(chs)) as ch_ix:
+            for ch_ix in range(len(chs)):
+            # with pyro.plate("child", len(chs)) as ch_ix:
+                # get child latent distribution
                 ch = chs[ch_ix]
-                # TODO replace v-structure with child-node
                 u_ch_dist_numpyro = self.model[ch]['noise_distribution']
                 u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-                u_ch = pyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
-                # insert x_j value into parent array
+                assert isinstance(u_ch_dist, pyro.distributions.Normal)
+
+                # build parents array for child
                 ix = list(self.model[ch]['parents']).index(node)
                 x_ch_pa = x_ch_pa_dict[ch]
-                x_ch_pa[:, ix] = x_j
-                x_ch_input = self.model[ch]['fnc_torch'](x_ch_pa, u_ch)
-                x_ch = pyro.sample("x_{}".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
-                                   obs=x_ch_dict[ch])
+                if len(x_j.shape) > 0:
+                    x_ch_pa_rep = x_ch_pa.repeat((len(x_j), 1))
+                else:
+                    x_ch_pa_rep = x_ch_pa
+                x_ch_pa_rep[:, ix] = x_j
+
+                # get function and assert additivity
+                fnc = self.model[ch]['fnc_torch']
+                assert fnc.additive
+
+                # build respective target distribution
+                x_ch_input = fnc.raw(x_ch_pa_rep)
+                d_ch = pyro.distributions.Normal(x_ch_input + u_ch_dist.loc, u_ch_dist.scale)
+
+                # define and append child
+                x_ch = pyro.sample("x_{}".format(ch), d_ch, obs=x_ch_dict[ch])
                 x_chs.append(x_ch)
             return x_j, x_chs
 
