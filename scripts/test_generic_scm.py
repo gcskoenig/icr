@@ -16,8 +16,8 @@ scm.set_prediction_target(y_name)
 context = scm.sample_context(population_size)
 data = scm.compute()
 
-data.to_csv(savepath + 'data.csv')
-context.to_csv(savepath + 'context.csv')
+# data.to_csv(savepath + 'data.csv')
+# context.to_csv(savepath + 'context.csv')
 
 num_chains = 1
 

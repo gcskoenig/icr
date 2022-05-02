@@ -178,7 +178,9 @@ class StructuralCausalModel:
         """
         for node in self.topological_order:
             d = self.model[node]['noise_distribution']
-            if isinstance(d, numpyro.distributions.Delta):
+            # if isinstance(d, numpyro.distributions.Delta):
+            #     pass
+            if d is None:
                 pass
             elif isinstance(d, numpyro.distributions.Distribution) and len(d.event_shape) > 0:
                 # TODO check whether right assignment

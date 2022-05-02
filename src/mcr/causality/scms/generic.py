@@ -21,6 +21,9 @@ class StructuralFunction:
     def __call__(self, *args, **kwargs):
         return self.fnc(*args, **kwargs)
 
+    def is_invertible(self):
+        return (not self.inv_fnc is None) or (self.additive)
+
     def inv(self, x_pa, x_j, *args, **kwargs):
         if self.inv_fnc is None:
             if self.additive:
@@ -134,6 +137,17 @@ class GenericSCM(StructuralCausalModel):
 
     def _abduct_node_par_mcmc(self, node, obs, warmup_steps=200, nr_samples=400,
                               nr_chains=1, **kwargs):
+        fnc = self.model[node]['fnc']
+
+        obs_df = obs.to_frame().T
+        x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
+        x_j = obs_df[[node]].to_numpy()
+
+        # if the function is invertible
+        if fnc.is_invertible():
+            u_j = fnc.inv(x_pa, x_j).flatten()
+            return dist.Delta(v=u_j)
+
         # parent and node were observed
         def model(x_pa, x_j=None):
             u_j_dist = self.model[node]['noise_distribution']
@@ -144,9 +158,6 @@ class GenericSCM(StructuralCausalModel):
                 input = self.model[node]['fnc'](x_pa, u_j)
             x_j = numpyro.sample(node, dist.Normal(input, GenericSCM.SMALL_VAR), obs=x_j)
 
-        obs_df = obs.to_frame().T
-        x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
-        x_j = obs_df[[node]].to_numpy()
         mcmc_res = GenericSCM._mcmc(nr_samples, warmup_steps, nr_chains, model, x_pa,
                                     x_j=x_j, rng_key=jrandom.PRNGKey(0))
 
@@ -165,7 +176,7 @@ class GenericSCM(StructuralCausalModel):
     def _abduct_node_par_unobs(self, node, obs, **kwargs):
         # one parent not observed, but parents of the parent were observed
         # ATTENTION: We assume that the noise variable was already abducted together with the unobserved parent's noise
-        return numpyro.distributions.Delta()
+        return None
 
     def _abduct_node_obs_discrete(self, node, obs, nr_samples=1000, temperature=1):
         # prepare data
