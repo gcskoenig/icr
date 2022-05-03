@@ -234,7 +234,7 @@ class StructuralCausalModel:
         """
         nds = self.dag.get_nondescendants(intervention_dict.keys())
         nds = set.intersection(set(obs.keys()), nds)
-        scm_ = self.do(obs[nds])
+        scm_ = self.do(obs[list(nds)])
         return scm_
 
     def abduct_node(self, node, obs, scm_partially_abducted=None, infer_type='mcmc', **kwargs):

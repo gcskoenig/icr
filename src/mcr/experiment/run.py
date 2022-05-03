@@ -44,7 +44,8 @@ logging.getLogger().setLevel(20)
 
 def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    seed=42, predict_individualized=False,
-                   model_type='logreg', nr_refits_batch0=5, **kwargs_model):
+                   model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
+                   NGEN=1000, **kwargs_model):
     try:
         if not os.path.exists(savepath):
             os.mkdir(savepath)
@@ -55,6 +56,9 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         logging.info('Creation of directory %s successful/directory exists already' % savepath)
 
     # extract SCM
+
+    if savepath[-1] != '/':
+        savepath = savepath + '/'
 
     if scm_name not in ex.scm_dict.keys():
         raise RuntimeError(f'SCM {scm_name} not known. Chose one of {ex.scm_dict.keys()}')
@@ -97,6 +101,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
 
     N_BATCHES = 2
+    if assess_robustness:
+        N_BATCHES = 3
 
     for ii in range(iterations):
         logging.info('')
@@ -167,8 +173,9 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         batches[0][1].to_csv(it_path + 'y_train.csv')
         batches[1][0].to_csv(it_path + 'X_test.csv')
         batches[1][1].to_csv(it_path + 'y_test.csv')
-        # batches[2][0].to_csv(it_path + 'X_val.csv')
-        # batches[2][1].to_csv(it_path + 'y_val.csv')
+        if assess_robustness:
+            batches[2][0].to_csv(it_path + 'X_val.csv')
+            batches[2][1].to_csv(it_path + 'y_val.csv')
 
         for r_type, t_type in all_combinations:
             logging.info('')
@@ -180,60 +187,62 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
                                              proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
-                                             predict_individualized=predict_individualized)
+                                             predict_individualized=predict_individualized, NGEN=NGEN)
 
             # save results
             logging.info('Saving results for {}_{}...'.format(t_type, r_type))
             save_recourse_result(savepath_it_config, result_tpl)
             logging.info('Done.')
 
-            # # create a large dataset with mixed pre- and post-recourse data
-            # logging.info("Create dataset mixed batch 0 pre and batch 1 post recourse")
-            # X_train_large = batches[0][0].copy()
-            # y_train_large = batches[0][1].copy()
-
+            X_batch1_post_impl = result_tpl[5]
             X_batch1_post = batches[1][0].copy()
-            # y_batch1_post = batches[1][1].copy()
-            # X_batch1_post_impl = result_tpl[5]
-            # y_batch1_post_impl = result_tpl[6]
-            # X_batch1_post.loc[X_batch1_post_impl.index, :] = X_batch1_post_impl
-            # y_batch1_post.loc[y_batch1_post_impl.index] = y_batch1_post_impl
-            #
-            # X_train_large = X_train_large.append(X_batch1_post, ignore_index=True)
-            # y_train_large = y_train_large.append(y_batch1_post, ignore_index=True)
-            #
-            # # fit a separate model on batch0_pre and batch1_post
-            #
-            # logging.info('Fit model on mixed dataset')
-            # model_post = None
-            # if model_type == 'logreg':
-            #     model_post = LogisticRegression()
-            # elif model_type == 'rf':
-            #     model_post = RandomForestClassifier(n_estimators=5)
-            # else:
-            #     raise NotImplementedError('model type {} not implemented'.format(model_type))
-            #
-            # model_post.fit(X_train_large, y_train_large)
-            #
-            # # perform recourse on batch 1
-            # logging.info('Perform recourse on batch 2')
-            #
-            # result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
-            #                                         proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
-            #                                         thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
-            #                                         predict_individualized=predict_individualized)
-            # X_batch2_post_impl, y_batch2_post_impl = result_tpl_batch2[5], result_tpl_batch2[6]
-            # recourse_recommended_ixs = result_tpl_batch2[9]['recourse_recommended_ixs']
-            #
-            # # save results
-            # logging.info('Saving results for {}_{} batch2 ...'.format(t_type, r_type))
-            # savepath_batch2 = savepath_it_config + 'batch2_'
-            # save_recourse_result(savepath_batch2, result_tpl_batch2)
-            # logging.info('Done.')
-            #
-            # # assess acceptance for batch 2 with model_mixed
-            # predict_batch2 = model_post.predict(X_batch2_post_impl.loc[recourse_recommended_ixs, :])
-            # eta_obs_batch2 = np.mean(predict_batch2)
+            X_batch1_post.loc[X_batch1_post_impl.index, :] = X_batch1_post_impl
+
+            if assess_robustness:
+                # create a large dataset with mixed pre- and post-recourse data
+                logging.info("Create dataset mixed batch 0 pre and batch 1 post recourse")
+                X_train_large = batches[0][0].copy()
+                y_train_large = batches[0][1].copy()
+
+                y_batch1_post = batches[1][1].copy()
+                y_batch1_post_impl = result_tpl[6]
+                y_batch1_post.loc[y_batch1_post_impl.index] = y_batch1_post_impl
+
+                X_train_large = X_train_large.append(X_batch1_post, ignore_index=True)
+                y_train_large = y_train_large.append(y_batch1_post, ignore_index=True)
+
+                # fit a separate model on batch0_pre and batch1_post
+
+                logging.info('Fit model on mixed dataset')
+                model_post = None
+                if model_type == 'logreg':
+                    model_post = LogisticRegression()
+                elif model_type == 'rf':
+                    model_post = RandomForestClassifier(n_estimators=5)
+                else:
+                    raise NotImplementedError('model type {} not implemented'.format(model_type))
+
+                model_post.fit(X_train_large, y_train_large)
+
+                # perform recourse on batch 1
+                logging.info('Perform recourse on batch 2')
+
+                result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
+                                                        proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                                        thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
+                                                        predict_individualized=predict_individualized)
+                X_batch2_post_impl, y_batch2_post_impl = result_tpl_batch2[5], result_tpl_batch2[6]
+                recourse_recommended_ixs_batch2 = result_tpl_batch2[9]['recourse_recommended_ixs']
+
+                # save results
+                logging.info('Saving results for {}_{} batch2 ...'.format(t_type, r_type))
+                savepath_batch2 = savepath_it_config + 'batch2_'
+                save_recourse_result(savepath_batch2, result_tpl_batch2)
+                logging.info('Done.')
+
+                # assess acceptance for batch 2 with model_mixed
+                predict_batch2 = model_post.predict(X_batch2_post_impl.loc[recourse_recommended_ixs_batch2, :])
+                eta_obs_batch2 = np.mean(predict_batch2)
 
             # access acceptance for batch 1 with multiplicity models (without distribution shift)
             eta_obs_refits_batch0 = []
@@ -250,17 +259,21 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                     stats = json.load(json_file)
 
                 # add further information to the statistics
-                # stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+                if assess_robustness:
+                    stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+
                 stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
 
                 if model_type == 'logreg':
                     stats['model_coef'] = model.coef_.tolist()
                     stats['model_coef'].append(model.intercept_.tolist())
-                    # stats['model_coef_refit'] = model_post.coef_.tolist()
-                    # stats['model_coef_refit'].append(model_post.intercept_.tolist())
+                    if assess_robustness:
+                        stats['model_coef_refit'] = model_post.coef_.tolist()
+                        stats['model_coef_refit'].append(model_post.intercept_.tolist())
                 else:
                     stats['model_coef'] = float('nan')
-                    # stats['model_coef_refit'] = float('nan')
+                    if assess_robustness:
+                        stats['model_coef_refit'] = float('nan')
 
                 with open(savepath_it_config + 'stats.json', 'w') as json_file:
                     json.dump(stats, json_file)
@@ -269,62 +282,62 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 logging.debug(exc)
 
 
-if __name__ == '__main__':
-    # parsing command line arguments
-    parser = argparse.ArgumentParser("Create recourse experiments. " +
-                                     "For every configuration a separate folder is created. " +
-                                     "Within every folder a folder for every interation is created." +
-                                     "The savepath specifies the folder in which these folders shall be placed.")
-
-    parser.add_argument("scm_name", help=f"one of {ex.scm_dict.keys()}", type=str)
-    parser.add_argument("savepath",
-                        help="savepath for the experiment folder. either relative to working directory or absolute.",
-                        type=str)
-    parser.add_argument("gamma", help="gammas for recourse", type=float)
-    parser.add_argument("N", help="Number of observations", type=int)
-    parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
-
-    parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
-    parser.add_argument("--seed", help="seed", default=42, type=int)
-    parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
-                        default="both", type=str)
-    parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
-    parser.add_argument("--predict_individualized", help="use individualized prediction if available",
-                        default=True, type=bool)
-    parser.add_argument("--model_type", help="model class", default='logreg', type=str)
-
-    parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
-    parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
-                        default=True, type=bool)
-
-    args = parser.parse_args()
-
-    # set logging settings
-    logging.getLogger().setLevel(args.logging_level)
-
-    if args.ignore_np_errs:
-        np.seterr(all="ignore")
-
-    savepath_config = None
-
-
-    n_tries = 0
-    done = False
-    while n_tries < 5 and not done:
-        try:
-            config_id = random.randint(0, 1024)
-            savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N,
-                                                                                 config_id)
-            n_tries += 1
-            os.mkdir(savepath_config)
-            done = True
-        except Exception as err:
-            logging.warning('Could not generate folder...{}'.format(savepath_config))
-
-    run_experiment(args.scm_name, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
-                   seed=args.seed,
-                   iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-                   predict_individualized=args.predict_individualized,
-                   model_type=args.model_type)
-
-    compile_experiments(args.savepath)
+# if __name__ == '__main__':
+#     # parsing command line arguments
+#     parser = argparse.ArgumentParser("Create recourse experiments. " +
+#                                      "For every configuration a separate folder is created. " +
+#                                      "Within every folder a folder for every interation is created." +
+#                                      "The savepath specifies the folder in which these folders shall be placed.")
+#
+#     parser.add_argument("scm_name", help=f"one of {ex.scm_dict.keys()}", type=str)
+#     parser.add_argument("savepath",
+#                         help="savepath for the experiment folder. either relative to working directory or absolute.",
+#                         type=str)
+#     parser.add_argument("gamma", help="gammas for recourse", type=float)
+#     parser.add_argument("N", help="Number of observations", type=int)
+#     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
+#
+#     parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
+#     parser.add_argument("--seed", help="seed", default=42, type=int)
+#     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
+#                         default="both", type=str)
+#     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
+#     parser.add_argument("--predict_individualized", help="use individualized prediction if available",
+#                         default=True, type=bool)
+#     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
+#
+#     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
+#     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
+#                         default=True, type=bool)
+#
+#     args = parser.parse_args()
+#
+#     # set logging settings
+#     logging.getLogger().setLevel(args.logging_level)
+#
+#     if args.ignore_np_errs:
+#         np.seterr(all="ignore")
+#
+#     savepath_config = None
+#
+#
+#     n_tries = 0
+#     done = False
+#     while n_tries < 5 and not done:
+#         try:
+#             config_id = random.randint(0, 1024)
+#             savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N,
+#                                                                                  config_id)
+#             n_tries += 1
+#             os.mkdir(savepath_config)
+#             done = True
+#         except Exception as err:
+#             logging.warning('Could not generate folder...{}'.format(savepath_config))
+#
+#     run_experiment(args.scm_name, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
+#                    seed=args.seed,
+#                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
+#                    predict_individualized=args.predict_individualized,
+#                    model_type=args.model_type)
+#
+#     compile_experiments(args.savepath)

@@ -70,6 +70,7 @@ def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_t
              return_split_cost=False):
     intv_dict = indvd_to_intrv(scm, features, individual, obs, causes_of=None)
 
+    # assumes that sample_context was already called
     scm_ = scm.copy()
 
     # for subpopulation-based recourse at this point nondescendants are fixed
@@ -82,7 +83,7 @@ def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_t
     predictions = predict_log_proba(values[features])[:, 1]
     expected_above_thresh = np.mean(np.exp(predictions) >= thresh)
 
-    ind = np.array(individual)
+    ind = np.abs(np.array(individual))
     cost = np.dot(ind, costs) # intervention cost
     acceptance_cost = expected_above_thresh < eta
     res = cost + lbd * acceptance_cost
@@ -98,6 +99,8 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
     # WARNING: for individualized recourse we expect the scm to be abducted already
 
     intv_dict = indvd_to_intrv(scm, features, individual, obs)
+
+    # assues that sample_context was already called
     scm_ = scm.copy()
 
     # for subpopulation-based recourse at this point nondescendants are fixed
@@ -120,7 +123,7 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
 
     meaningfulness_cost = perc_positive < gamma
 
-    ind = np.array(individual)
+    ind = np.abs(np.array(individual))
     cost = np.dot(ind, costs)
     res = cost + lbd * meaningfulness_cost
     if return_split_cost:
@@ -193,18 +196,14 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
 
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
-             eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
+             eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=10**4, CX_PROB=0.3, MX_PROB=0.05):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
 
-    CX_PROB = 0.3
-    MX_PROB = 0.05
-    NGEN = 100
-
     toolbox = base.Toolbox()
-    toolbox.register("intervene", random.random, 0, 1)  # TODO allow for mixed types
+    toolbox.register("intervene", random.random)  # TODO allow for mixed types
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
@@ -258,7 +257,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
-                        model=None, use_scm_pred=False, predict_individualized=False):
+                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=10**3):
     assert not (model is None and not use_scm_pred)
 
     # initializing prediction setup
@@ -312,7 +311,8 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               predict_log_proba=predict_log_proba, y_name=y_name,
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
-                                                              subpopulation_size=subpopulation_size)
+                                                              subpopulation_size=subpopulation_size,
+                                                              NGEN=NGEN)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
@@ -369,7 +369,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Computing stats...')
     stats = {}
-    ixs_rp = interventions[interventions.sum(axis=1) >= 1].index # indexes for which recourse was performed
+    ixs_rp = interventions[np.abs(interventions.sum(axis=1)) >= 0].index # indexes for which recourse was performed
     stats['accuracy_pre'] = accuracy_pre
     stats['accuracy_post'] = accuracy_post
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())
