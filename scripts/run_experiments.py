@@ -3,7 +3,7 @@ from mcr.experiment.compile import compile_experiments
 import random
 
 # savepath = '../experiments/remote-experiments/test_generic/greenfield/'
-savepath = '~/data/experiments/mcr-experiments/test_generic/3var-noncausal/'
+savepath = '~/data/mcr-experiments/test_generic/3var-noncausal/'
 
 id = random.randint(0, 2**10)
 print(id)
