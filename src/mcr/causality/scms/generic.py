@@ -17,8 +17,8 @@ class GenericSCM(StructuralCausalModel):
     SMALL_VAR = 0.0001
 
     def __init__(self, dag, fnc_dict={}, fnc_torch_dict={}, noise_dict={},
-                 u_prefix='u_', sigmoidal=[]):
-        super(GenericSCM, self).__init__(dag, u_prefix=u_prefix)
+                 u_prefix='u_', sigmoidal=[], costs=None, y_name=None):
+        super(GenericSCM, self).__init__(dag, u_prefix=u_prefix, costs=costs, y_name=y_name)
 
         for node in self.topological_order:
             if node not in fnc_dict:
