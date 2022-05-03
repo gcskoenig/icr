@@ -9,7 +9,7 @@ savepath = '~/data/mcr-experiments/test_generic/3var-noncausal/'
 id = random.randint(0, 2**10)
 print(id)
 
-os.mkdir(savepath + f"_{id}")
+os.mkdir(savepath + f"_{id}/")
 
 run_experiment('3var-noncausal', 2000, 0.9, 0.5, 10, savepath + f'_{id}',
                NGEN=100, assess_robustness=False, iterations=5)
@@ -21,7 +21,7 @@ savepath = '~/data/experiments/mcr-experiments/test_generic/3var-causal/'
 id = random.randint(0, 2**10)
 print(id)
 
-os.mkdir(savepath + f"_{id}")
+os.mkdir(savepath + f"_{id}/")
 
 run_experiment('3var-causal', 2000, 0.9, 0.5, 10, savepath + f'_{id}',
                NGEN=100, assess_robustness=False, iterations=5)
