@@ -38,12 +38,12 @@ import argparse
 import mcr.causality.examples as ex
 from mcr.recourse import recourse_population, save_recourse_result
 
-from scripts.compile import compile_experiments
+from mcr.experiment.compile import compile_experiments
 
 logging.getLogger().setLevel(20)
 
-def run_experiment(seed, N, lbd, gamma, thresh, savepath, use_scm_pred=False, iterations=5, t_types='both',
-                   scm_name=None, predict_individualized=False,
+def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
+                   seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, **kwargs_model):
     try:
         if not os.path.exists(savepath):
@@ -54,15 +54,13 @@ def run_experiment(seed, N, lbd, gamma, thresh, savepath, use_scm_pred=False, it
     else:
         logging.info('Creation of directory %s successful/directory exists already' % savepath)
 
-    logging.info('generating problem...')
-
     # extract SCM
 
-    if args.scm_name not in ex.scm_dict.keys():
-        raise RuntimeError(f'SCM {args.scm_name} not known. Chose one of {ex.scm_dict.keys()}')
-    scm = ex.scm_dict[args.scm_name]
+    if scm_name not in ex.scm_dict.keys():
+        raise RuntimeError(f'SCM {scm_name} not known. Chose one of {ex.scm_dict.keys()}')
+    scm = ex.scm_dict[scm_name]
 
-    y_name, costs = scm.predict_target, scm.costs
+    y_name, costs = scm.predict_target, np.array(scm.costs)
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
 
@@ -323,9 +321,9 @@ if __name__ == '__main__':
         except Exception as err:
             logging.warning('Could not generate folder...{}'.format(savepath_config))
 
-    run_experiment(args.seed, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
+    run_experiment(args.scm_name, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
+                   seed=args.seed,
                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-                   scm_name=args.scm_name,
                    predict_individualized=args.predict_individualized,
                    model_type=args.model_type)
 

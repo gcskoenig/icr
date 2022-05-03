@@ -13,17 +13,22 @@ from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
 
+from mcr.causality.scms import BinomialBinarySCM, GenericSCM
+
+
 # LOGGING
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 # RECOURSE FUNCTIONS
 
 def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     """
-    If causes_of is None, then all interventions are added to the dictinoary.
-    If it is a specific node, then only causes of that node are added.
+    If causes_of is None, then all interventions are added to the dictionary.
+    If causes of is specified, only internvetions on ancestors of the specified
+    node are considered.
     """
     dict = {}
 
@@ -37,14 +42,19 @@ def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     # iterate over variables to add causes
     for ii in range(len(features)):
         var_name = features[ii]
-        if individual[ii] and (var_name in causes):
-            dict[var_name] = (obs[var_name] + individual[ii]) % 2
+        if abs(individual[ii]) > 0 and (var_name in causes):
+            if isinstance(scm, BinomialBinarySCM):
+                dict[var_name] = (obs[var_name] + individual[ii]) % 2
+            elif isinstance(scm, GenericSCM):
+                dict[var_name] = individual[ii] - obs[var_name]
+            else:
+                raise NotImplementedError('only BinomialBinary or GenericSCM supported.')
     return dict
 
 
 def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):
     """
-    Computes the individualized post-recourse predictions (proababilities)
+    Computes the individualized post-recourse predictions (probabilities)
     """
     log_probs = np.zeros(invs.shape[0])
     for ix in range(invs.shape[0]):
@@ -194,12 +204,13 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     NGEN = 100
 
     toolbox = base.Toolbox()
-    toolbox.register("intervene", random.randint, 0, 1)
+    toolbox.register("intervene", random.random, 0, 1)  # TODO allow for mixed types
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
-    toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    # toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':
@@ -297,7 +308,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook, goal_cost, intv_cost = recourse_discrete(scm_, intv_features, obs, costs, r_type, t_type,
+        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
                                                               predict_log_proba=predict_log_proba, y_name=y_name,
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,

@@ -39,7 +39,7 @@ from mcr.causality.dags import DirectedAcyclicGraph
 from mcr.causality.scms.scm import BinomialBinarySCM, SigmoidBinarySCM
 from mcr.recourse import recourse_population, save_recourse_result
 
-from compile import compile_experiments
+from mcr.experiment.compile import compile_experiments
 
 
 logging.getLogger().setLevel(20)

@@ -53,10 +53,9 @@ SCM_3_VAR_CAUSAL = GenericSCM(
     fnc_dict={y_name: sigmoidal_binomial},
     fnc_torch_dict={y_name: sigmoidal_binomial_torch},
     sigmoidal=[y_name],
-    costs=[1.0, 1.0, 1.0]
+    costs=[1.0, 1.0, 1.0],
+    y_name=y_name
 )
-
-SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
 
 SCM_3_VAR_NONCAUSAL = GenericSCM(
     dag=DirectedAcyclicGraph(
@@ -70,10 +69,9 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
     fnc_dict={y_name: sigmoidal_binomial},
     fnc_torch_dict={y_name: sigmoidal_binomial_torch},
     sigmoidal=[y_name],
-    costs=[1.0, 1.0, 1.0]
+    costs=[1.0, 1.0, 1.0],
+    y_name=y_name
 )
-
-SCM_3_VAR_CAUSAL.set_prediction_target(y_name)
 
 
 #  OVERVIEW
