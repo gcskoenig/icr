@@ -12,7 +12,7 @@ print(id)
 os.mkdir(savepath + f"_{id}")
 
 run_experiment('3var-noncausal', 2000, 0.9, 0.5, 10, savepath + f'_{id}',
-               NGEN=2, assess_robustness=False, iterations=5)
+               NGEN=100, assess_robustness=False, iterations=5)
 compile_experiments(savepath, assess_robustness=False, scm_name='3var-noncausal')
 
 
@@ -21,6 +21,8 @@ savepath = '~/data/experiments/mcr-experiments/test_generic/3var-causal/'
 id = random.randint(0, 2**10)
 print(id)
 
+os.mkdir(savepath + f"_{id}")
+
 run_experiment('3var-causal', 2000, 0.9, 0.5, 10, savepath + f'_{id}',
-               NGEN=2, assess_robustness=False, iterations=5)
+               NGEN=100, assess_robustness=False, iterations=5)
 compile_experiments(savepath, assess_robustness=False, scm_name='3var-causal')
