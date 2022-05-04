@@ -13,8 +13,8 @@ iterations = 3
 n_digits = 2
 
 
-savepath = '../experiments/remote-experiments/test_generic/greenfield/'
-# savepath = '/home/gcsk/data/mcr-experiments/test_generic/3var-noncausal/'
+# savepath = '../experiments/remote-experiments/test_generic/greenfield/'
+savepath = '/home/gcsk/data/mcr-experiments/test_generic/3var-noncausal/'
 
 id = random.randint(0, 2**10)
 print(id)
