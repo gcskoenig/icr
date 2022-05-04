@@ -13,8 +13,7 @@ from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
 
-from mcr.causality.scms import BinomialBinarySCM, GenericSCM
-from mcr.evaluation import GreedyEvaluator
+from mcr.evaluation import GreedyEvaluator, indvd_to_intrv
 
 
 # LOGGING
@@ -25,32 +24,6 @@ logger = logging.getLogger(__name__)
 
 # RECOURSE FUNCTIONS
 
-def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
-    """
-    If causes_of is None, then all interventions are added to the dictionary.
-    If causes of is specified, only internvetions on ancestors of the specified
-    node are considered.
-    """
-    dict = {}
-
-    # build causes set
-    causes = None
-    if causes_of is None:
-        causes = set(features)
-    else:
-        causes = scm.dag.get_ancestors_node(causes_of)
-
-    # iterate over variables to add causes
-    for ii in range(len(features)):
-        var_name = features[ii]
-        if abs(individual[ii]) > 0 and (var_name in causes):
-            if isinstance(scm, BinomialBinarySCM):
-                dict[var_name] = (obs[var_name] + individual[ii]) % 2
-            elif isinstance(scm, GenericSCM):
-                dict[var_name] = individual[ii] - obs[var_name]
-            else:
-                raise NotImplementedError('only BinomialBinary or GenericSCM supported.')
-    return dict
 
 
 def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):
@@ -117,6 +90,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
                                   stats=stats, halloffame=hof, verbose=False)
 
     winner = list(hof)[0]
+    winner = [round(x, ndigits=rounding_digits) for x in winner]
 
     goal_cost, intv_cost = None, None
     if t_type == 'acceptance':
@@ -127,13 +101,15 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     if cleanup:
         del creator.FitnessMin
         del creator.Individual
+        del evaluator
 
     return winner, pop, logbook, goal_cost, intv_cost
 
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
-                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000):
+                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000,
+                        rounding_digits=2):
     assert not (model is None and not use_scm_pred)
 
     # initializing prediction setup
@@ -188,7 +164,8 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size,
-                                                              NGEN=NGEN, POP_SIZE=POP_SIZE)
+                                                              NGEN=NGEN, POP_SIZE=POP_SIZE,
+                                                              rounding_digits=rounding_digits)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
