@@ -30,7 +30,7 @@ class StructuralCausalModel:
     tools for the computation of counterfactuals.
     """
 
-    def __init__(self, dag: DirectedAcyclicGraph, u_prefix='u_'):
+    def __init__(self, dag: DirectedAcyclicGraph, costs=None, y_name=None, u_prefix='u_'):
         """
         Args:
             dag: DAG, defining SCM
@@ -40,7 +40,10 @@ class StructuralCausalModel:
         self.topological_order = []
         self.INVERTIBLE = False
         self.u_prefix = u_prefix
-        self.predict_target = None
+        self.predict_target = y_name
+        if costs is None:
+            costs = list(np.ones(len(dag.var_names)) - 1)
+        self.costs = costs
 
         # the model dictionary is an internal representation of the SCM. The keys depend on the specific implementation.
         self.model = {}
@@ -231,7 +234,7 @@ class StructuralCausalModel:
         """
         nds = self.dag.get_nondescendants(intervention_dict.keys())
         nds = set.intersection(set(obs.keys()), nds)
-        scm_ = self.do(obs[nds])
+        scm_ = self.do(obs[list(nds)])
         return scm_
 
     def abduct_node(self, node, obs, scm_partially_abducted=None, infer_type='mcmc', **kwargs):

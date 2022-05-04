@@ -13,17 +13,22 @@ from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
 
+from mcr.causality.scms import BinomialBinarySCM, GenericSCM
+
+
 # LOGGING
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+
 # RECOURSE FUNCTIONS
 
 def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     """
-    If causes_of is None, then all interventions are added to the dictinoary.
-    If it is a specific node, then only causes of that node are added.
+    If causes_of is None, then all interventions are added to the dictionary.
+    If causes of is specified, only internvetions on ancestors of the specified
+    node are considered.
     """
     dict = {}
 
@@ -37,14 +42,19 @@ def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     # iterate over variables to add causes
     for ii in range(len(features)):
         var_name = features[ii]
-        if individual[ii] and (var_name in causes):
-            dict[var_name] = (obs[var_name] + individual[ii]) % 2
+        if abs(individual[ii]) > 0 and (var_name in causes):
+            if isinstance(scm, BinomialBinarySCM):
+                dict[var_name] = (obs[var_name] + individual[ii]) % 2
+            elif isinstance(scm, GenericSCM):
+                dict[var_name] = individual[ii] - obs[var_name]
+            else:
+                raise NotImplementedError('only BinomialBinary or GenericSCM supported.')
     return dict
 
 
 def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):
     """
-    Computes the individualized post-recourse predictions (proababilities)
+    Computes the individualized post-recourse predictions (probabilities)
     """
     log_probs = np.zeros(invs.shape[0])
     for ix in range(invs.shape[0]):
@@ -60,6 +70,7 @@ def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_t
              return_split_cost=False):
     intv_dict = indvd_to_intrv(scm, features, individual, obs, causes_of=None)
 
+    # assumes that sample_context was already called
     scm_ = scm.copy()
 
     # for subpopulation-based recourse at this point nondescendants are fixed
@@ -72,7 +83,7 @@ def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_t
     predictions = predict_log_proba(values[features])[:, 1]
     expected_above_thresh = np.mean(np.exp(predictions) >= thresh)
 
-    ind = np.array(individual)
+    ind = np.abs(np.array(individual))
     cost = np.dot(ind, costs) # intervention cost
     acceptance_cost = expected_above_thresh < eta
     res = cost + lbd * acceptance_cost
@@ -88,6 +99,8 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
     # WARNING: for individualized recourse we expect the scm to be abducted already
 
     intv_dict = indvd_to_intrv(scm, features, individual, obs)
+
+    # assues that sample_context was already called
     scm_ = scm.copy()
 
     # for subpopulation-based recourse at this point nondescendants are fixed
@@ -110,7 +123,7 @@ def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, s
 
     meaningfulness_cost = perc_positive < gamma
 
-    ind = np.array(individual)
+    ind = np.abs(np.array(individual))
     cost = np.dot(ind, costs)
     res = cost + lbd * meaningfulness_cost
     if return_split_cost:
@@ -183,23 +196,21 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
 
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
-             eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
+             eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
+             POP_SIZE=1000):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
 
-    CX_PROB = 0.3
-    MX_PROB = 0.05
-    NGEN = 100
-
     toolbox = base.Toolbox()
-    toolbox.register("intervene", random.randint, 0, 1)
+    toolbox.register("intervene", random.random)  # TODO allow for mixed types
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
-    toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    # toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':
@@ -221,11 +232,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    IND_SIZE_OPTIM = min(3, IND_SIZE)
-
-    pop = toolbox.population(n=IND_SIZE_OPTIM * 10)
+    pop = toolbox.population(n=POP_SIZE)
     hof = tools.HallOfFame(IND_SIZE)
-    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE_OPTIM * 5, IND_SIZE_OPTIM * 10, CX_PROB, MX_PROB, NGEN,
+    pop, logbook = eaMuPlusLambda(pop, toolbox, POP_SIZE, POP_SIZE * 2, CX_PROB, MX_PROB, NGEN,
                                   stats=stats, halloffame=hof, verbose=False)
 
     winner = list(hof)[0]
@@ -247,7 +256,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
-                        model=None, use_scm_pred=False, predict_individualized=False):
+                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000):
     assert not (model is None and not use_scm_pred)
 
     # initializing prediction setup
@@ -297,11 +306,12 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook, goal_cost, intv_cost = recourse_discrete(scm_, intv_features, obs, costs, r_type, t_type,
+        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
                                                               predict_log_proba=predict_log_proba, y_name=y_name,
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
-                                                              subpopulation_size=subpopulation_size)
+                                                              subpopulation_size=subpopulation_size,
+                                                              NGEN=NGEN, POP_SIZE=POP_SIZE)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
@@ -358,7 +368,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Computing stats...')
     stats = {}
-    ixs_rp = interventions[interventions.sum(axis=1) >= 1].index # indexes for which recourse was performed
+    ixs_rp = interventions[np.abs(interventions.sum(axis=1)) >= 0].index # indexes for which recourse was performed
     stats['accuracy_pre'] = accuracy_pre
     stats['accuracy_post'] = accuracy_post
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())
