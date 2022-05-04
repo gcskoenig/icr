@@ -196,7 +196,8 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
 
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
-             eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=10**4, CX_PROB=0.3, MX_PROB=0.05):
+             eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
+             POP_SIZE=1000):
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
@@ -231,11 +232,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     stats.register("min", np.min, axis=0)
     stats.register("max", np.max, axis=0)
 
-    IND_SIZE_OPTIM = min(3, IND_SIZE)
-
-    pop = toolbox.population(n=IND_SIZE_OPTIM * 10)
+    pop = toolbox.population(n=POP_SIZE)
     hof = tools.HallOfFame(IND_SIZE)
-    pop, logbook = eaMuPlusLambda(pop, toolbox, IND_SIZE_OPTIM * 5, IND_SIZE_OPTIM * 10, CX_PROB, MX_PROB, NGEN,
+    pop, logbook = eaMuPlusLambda(pop, toolbox, POP_SIZE, POP_SIZE * 2, CX_PROB, MX_PROB, NGEN,
                                   stats=stats, halloffame=hof, verbose=False)
 
     winner = list(hof)[0]
@@ -257,7 +256,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
-                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=10**3):
+                        model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000):
     assert not (model is None and not use_scm_pred)
 
     # initializing prediction setup
@@ -312,7 +311,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               gamma=gamma, eta=eta,
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size,
-                                                              NGEN=NGEN)
+                                                              NGEN=NGEN, POP_SIZE=POP_SIZE)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
