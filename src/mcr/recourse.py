@@ -14,6 +14,7 @@ from deap import tools
 from tqdm import tqdm
 
 from mcr.causality.scms import BinomialBinarySCM, GenericSCM
+from mcr.evaluation import GreedyEvaluator
 
 
 # LOGGING
@@ -65,75 +66,14 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=
     h_post_individualized.index = X_pre.index.copy()
     return h_post_individualized
 
-
-def evaluate(predict_log_proba, thresh, eta, scm, obs, features, costs, lbd, r_type, subpopulation_size, individual,
-             return_split_cost=False):
-    intv_dict = indvd_to_intrv(scm, features, individual, obs, causes_of=None)
-
-    # assumes that sample_context was already called
-    scm_ = scm.copy()
-
-    # for subpopulation-based recourse at this point nondescendants are fixed
-    if r_type == 'subpopulation':
-        scm_ = scm_.fix_nondescendants(intv_dict, obs)
-        cntxt = scm_.sample_context(subpopulation_size)
-
-    # sample from intervened distribution for obs_sub
-    values = scm_.compute(do=intv_dict)
-    predictions = predict_log_proba(values[features])[:, 1]
-    expected_above_thresh = np.mean(np.exp(predictions) >= thresh)
-
-    ind = np.abs(np.array(individual))
-    cost = np.dot(ind, costs) # intervention cost
-    acceptance_cost = expected_above_thresh < eta
-    res = cost + lbd * acceptance_cost
-
-    if return_split_cost:
-        return acceptance_cost, cost
-    else:
-        return res,
-
-
-def evaluate_meaningful(y_name, gamma, scm, obs, features, costs, lbd, r_type, subpopulation_size, individual,
-                        return_split_cost=False):
-    # WARNING: for individualized recourse we expect the scm to be abducted already
-
-    intv_dict = indvd_to_intrv(scm, features, individual, obs)
-
-    # assues that sample_context was already called
-    scm_ = scm.copy()
-
-    # for subpopulation-based recourse at this point nondescendants are fixed
-    if r_type == 'subpopulation':
-        acs = scm_.dag.get_ancestors_node(y_name)
-        intv_dict_causes = {k : intv_dict[k] for k in acs & intv_dict.keys()}
-        if len(intv_dict_causes.keys()) != len(intv_dict.keys()):
-            logger.debug('Intervention dict contained interventions on non-ascendants of Y ({})'.format(y_name))
-        scm_ = scm_.fix_nondescendants(intv_dict_causes, obs)
-        scm_.sample_context(subpopulation_size)
-
-    perc_positive = None
-    if r_type == 'subpopulation' and len(intv_dict_causes.keys()) == 0:
-        # use normal prediction to also incorporate information from effects
-        perc_positive = torch.exp(scm.predict_log_prob_obs(obs, y_name, y=1)).item()
-    else:
-        # sample from intervened distribution for obs_sub
-        values = scm_.compute(do=intv_dict)
-        perc_positive = values[y_name].mean()
-
-    meaningfulness_cost = perc_positive < gamma
-
-    ind = np.abs(np.array(individual))
-    cost = np.dot(ind, costs)
-    res = cost + lbd * meaningfulness_cost
-    if return_split_cost:
-        return meaningfulness_cost, cost
-    else:
-        return res,
-
-
 def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True,
-                      gamma=None, eta=None, thresh=None, lbd=1.0, subpopulation_size=500):
+                      gamma=None, eta=None, thresh=None, lbd=1.0, subpopulation_size=500, rounding_digits=2):
+
+    evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
+                                subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
+                                y_name=y_name)
+
+
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
@@ -155,13 +95,11 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
     if t_type == 'acceptance':
         assert not predict_log_proba is None
         assert not thresh is None
-        toolbox.register("evaluate", evaluate, predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
-                         subpopulation_size)
+        toolbox.register("evaluate", evaluator.evaluate, eta, thresh, r_type)
     elif t_type == 'improvement':
         assert not y_name is None
         assert not gamma is None
-        toolbox.register("evaluate", evaluate_meaningful, y_name, gamma, scm_, obs, features, costs, lbd, r_type,
-                         subpopulation_size)
+        toolbox.register("evaluate", evaluator.evaluate_meaningful, gamma, r_type)
     else:
         raise NotImplementedError('only t_types acceptance or improvement are available')
 
@@ -182,11 +120,9 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
 
     goal_cost, intv_cost = None, None
     if t_type == 'acceptance':
-        goal_cost, intv_cost = evaluate(predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
-                                        subpopulation_size, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split_cost=True)
     elif t_type == 'improvement':
-        goal_cost, intv_cost = evaluate_meaningful(y_name, gamma, scm_, obs, features, costs, lbd, r_type,
-                                                   subpopulation_size, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split_cost=True)
 
     if cleanup:
         del creator.FitnessMin
@@ -194,35 +130,42 @@ def recourse_discrete(scm_, features, obs, costs, r_type, t_type, predict_log_pr
 
     return winner, pop, logbook, goal_cost, intv_cost
 
-
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
              eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
-             POP_SIZE=1000):
+             POP_SIZE=1000, rounding_digits=2, binary=False):
+
+    evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
+                                subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
+                                y_name=y_name)
+
     creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
 
     toolbox = base.Toolbox()
-    toolbox.register("intervene", random.random)  # TODO allow for mixed types
+    if binary:
+        toolbox.register("intervene", random.randint, 0, 1)
+    else:
+        toolbox.register("intervene", random.random)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
-    # toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
-    toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
+    if binary:
+        toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    else:
+        toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':
         assert not predict_log_proba is None
         assert not thresh is None
-        toolbox.register("evaluate", evaluate, predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
-                         subpopulation_size)
+        toolbox.register("evaluate", evaluator.evaluate, eta, thresh, r_type)
     elif t_type == 'improvement':
         assert not y_name is None
         assert not gamma is None
-        toolbox.register("evaluate", evaluate_meaningful, y_name, gamma, scm_, obs, features, costs, lbd, r_type,
-                         subpopulation_size)
+        toolbox.register("evaluate", evaluator.evaluate_meaningful, gamma, r_type)
     else:
         raise NotImplementedError('only t_types acceptance or improvement are available')
 
@@ -241,11 +184,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
     goal_cost, intv_cost = None, None
     if t_type == 'acceptance':
-        goal_cost, intv_cost = evaluate(predict_log_proba, thresh, eta, scm_, obs, features, costs, lbd, r_type,
-                                        subpopulation_size, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split_cost=True)
     elif t_type == 'improvement':
-        goal_cost, intv_cost = evaluate_meaningful(y_name, gamma, scm_, obs, features, costs, lbd, r_type,
-                                                   subpopulation_size, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split_cost=True)
 
     if cleanup:
         del creator.FitnessMin
