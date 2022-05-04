@@ -45,7 +45,7 @@ logging.getLogger().setLevel(20)
 def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
-                   NGEN=1000, **kwargs_model):
+                   NGEN=400, POP_SIZE=1000, rounding_digits=2, **kwargs_model):
     try:
         if not os.path.exists(savepath):
             os.mkdir(savepath)
@@ -187,7 +187,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
                                              proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
-                                             predict_individualized=predict_individualized, NGEN=NGEN)
+                                             predict_individualized=predict_individualized,
+                                             NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)
 
             # save results
             logging.info('Saving results for {}_{}...'.format(t_type, r_type))
