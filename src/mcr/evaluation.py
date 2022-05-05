@@ -34,12 +34,16 @@ def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
                 raise NotImplementedError('only BinomialBinary or GenericSCM supported.')
     return dict
 
-
+def similar(in1, in2, nr_digits=2):
+    in1_r = [round(x, nr_digits) for x in in1]
+    in2_r = [round(x, nr_digits) for x in in2]
+    return in1_r == in2_r
 
 class GreedyEvaluator:
 
     def __init__(self, scm, obs, costs, features, lbd, rounding_digits=2,
-                 subpopulation_size=None, predict_log_proba=None, y_name=None):
+                 subpopulation_size=None, predict_log_proba=None, y_name=None,
+                 multi_objective=False):
         self._subpopulation_size = subpopulation_size
         self._predict_log_proba = predict_log_proba
         self._y_name = y_name
@@ -47,6 +51,7 @@ class GreedyEvaluator:
         self._scm, self._obs, self._costs, self._features, self._lbd = scm, obs, costs, features, lbd
         self.memoize_count = 0
         self.total_count = 0
+        self.multi_objective = multi_objective
 
     def perc_saved(self):
         return self.memoize_count / self.total_count
@@ -71,9 +76,9 @@ class GreedyEvaluator:
 
         ind = np.abs(np.array(individual))
         cost = np.dot(ind, self._costs)  # intervention cost
-        acceptance_cost = expected_above_thresh < eta
+        #acceptance_cost = expected_above_thresh < eta
 
-        return acceptance_cost, cost
+        return expected_above_thresh, cost
 
     @functools.cache
     def _evaluate_meaningful(self, gamma, r_type, individual):
@@ -102,32 +107,32 @@ class GreedyEvaluator:
             values = scm_.compute(do=intv_dict)
             perc_positive = values[self._y_name].mean()
 
-        meaningfulness_cost = perc_positive < gamma
+        # meaningfulness_cost = perc_positive < gamma
 
         ind = np.abs(np.array(individual))
         cost = np.dot(ind, self._costs)
-        return meaningfulness_cost, cost
+        return perc_positive, cost
 
-    def evaluate(self, eta, thresh, r_type, individual,
-                  return_split_cost=False):
+    def evaluate(self, eta, thresh, r_type, individual, return_split=False):
         self.memoize_count += 1
         self.total_count += 1
         individual = [round(el, self.rounding_digits) for el in individual]
         individual = tuple(individual)
         objective, cost = self._evaluate(eta, thresh, r_type, individual)
-        if return_split_cost:
-            return float(objective), float(cost)
+        if self.multi_objective or return_split:
+            return float(objective), float(cost),
         else:
-            return float(cost + self._lbd * objective),
+            objective = objective > eta
+            return float(-cost + self._lbd * objective),
 
-    def evaluate_meaningful(self, gamma, r_type, individual,
-                            return_split_cost=False):
+    def evaluate_meaningful(self, gamma, r_type, individual, return_split=False):
         self.memoize_count += 1
         self.total_count += 1
         individual = [round(el, self.rounding_digits) for el in individual]
         individual = tuple(individual)
         objective, cost = self._evaluate_meaningful(gamma, r_type, individual)
-        if return_split_cost:
-            return float(objective), float(cost)
+        if self.multi_objective or return_split:
+            return float(objective), float(cost),
         else:
-            return float(cost + self._lbd * objective),
+            objective = objective > gamma
+            return float(-cost + self._lbd * objective),

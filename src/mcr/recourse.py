@@ -13,7 +13,7 @@ from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
 
-from mcr.evaluation import GreedyEvaluator, indvd_to_intrv
+from mcr.evaluation import GreedyEvaluator, indvd_to_intrv, similar
 
 
 # LOGGING
@@ -41,13 +41,16 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
              eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
-             POP_SIZE=1000, rounding_digits=2, binary=False):
+             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False):
 
     evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
                                 subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
-                                y_name=y_name)
+                                y_name=y_name, multi_objective=multi_objective)
 
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+    if multi_objective:
+        creator.create("FitnessMin", base.Fitness, weights=(lbd, -1.0))
+    else:
+        creator.create("FitnessMin", base.Fitness, weights=(1.0,))
     creator.create("Individual", list, fitness=creator.FitnessMin)
 
     IND_SIZE = len(features)
@@ -85,19 +88,42 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     stats.register("max", np.max, axis=0)
 
     pop = toolbox.population(n=POP_SIZE)
-    hof = tools.HallOfFame(IND_SIZE)
+    if multi_objective:
+        hof = tools.ParetoFront(similar)
+    else:
+        hof = tools.HallOfFame(max(50, round(POP_SIZE/10)))
     pop, logbook = eaMuPlusLambda(pop, toolbox, POP_SIZE, POP_SIZE * 2, CX_PROB, MX_PROB, NGEN,
                                   stats=stats, halloffame=hof, verbose=False)
 
-    winner = list(hof)[0]
+    if multi_objective:
+        invds = np.array(list(hof))
+        perf = np.array([x.values for x in list(hof.keys)])
+
+        min_cost_constrained = np.min(perf[perf[:, 0] > 0.95, 1])
+        best_ix = np.where(perf[:, 1] == min_cost_constrained)[0][0]
+        winner = invds[best_ix, :]
+    else:
+        winner = list(hof)[0]
+
     winner = [round(x, ndigits=rounding_digits) for x in winner]
 
     goal_cost, intv_cost = None, None
     if t_type == 'acceptance':
-        goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split=True)
     elif t_type == 'improvement':
-        goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split_cost=True)
+        goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split=True)
 
+    # if goal could not be met return the empty intervention
+    goal_met = False
+    if not gamma is None:
+        goal_met = goal_cost < gamma
+    elif not eta is None:
+        goal_met = goal_cost < gamma
+
+    if not goal_met:
+        winner = [0.0 for _ in winner]
+
+    # cleanup
     if cleanup:
         del creator.FitnessMin
         del creator.Individual
@@ -165,7 +191,8 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
                                                               thresh=thresh, lbd=lbd,
                                                               subpopulation_size=subpopulation_size,
                                                               NGEN=NGEN, POP_SIZE=POP_SIZE,
-                                                              rounding_digits=rounding_digits)
+                                                              rounding_digits=rounding_digits,
+                                                              multi_objective=False)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
@@ -177,7 +204,6 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
         scm_true = scm.copy()
         u_tmp = U.iloc[ix, :].to_dict()
         scm_true.set_noise_values(u_tmp)
-        #scm_true.sample_context(size=1)
         sample = scm_true.compute(do=intervention)
         X_new.iloc[ix, :] = sample[X.columns].to_numpy()
         y_new.iloc[ix] = sample[y_name]
