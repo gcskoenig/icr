@@ -67,17 +67,30 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
     y_name, costs = scm.predict_target, np.array(scm.costs)
 
     # CHECKPOINT: SAVE ALL RELEVANT DATA
+    logging.info('Storing all relevant data...')
 
     problem_setup = {'N': N, 'seed': seed,
-                     'use_scm_pred': use_scm_pred,
-                     'gamma/eta': gamma,
+                     'scm_name': scm_name,
                      't_types': t_types,
-                     'costs': list(costs)}
+                     'thresh': thresh,
+                     'gamma/eta': gamma,
+                     'lbd': lbd,
+                     'costs': list(costs),
+                     'NGEN': NGEN,
+                     'POP_SIZE': POP_SIZE,
+                     'iterations': iterations,
+                     'rounding_digits': rounding_digits,
+                     'nr_refits_batch0': nr_refits_batch0,
+                     'assess_robustness': assess_robustness,
+                     'predict_individualized': predict_individualized,
+                     'use_scm_pred': use_scm_pred,
+                     'model_type': model_type,
+                     }
 
-    logging.info('Storing all relevant data...')
     # problem setup
     with open(savepath + 'problem_setup.json', 'w') as f:
         json.dump(problem_setup, f)
+
     # model coefficients
     # np.save(savepath + 'model_coef.npy', np.array(model.coef_))
     # scm
