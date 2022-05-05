@@ -65,7 +65,7 @@ if __name__ == "__main__":
         np.seterr(all="ignore")
 
     desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.n_iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
-    savepath_config = savepath + desc
+    savepath_config = args.savepath + desc
     print(savepath_config)
 
     n_tries = 0
