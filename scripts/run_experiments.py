@@ -64,8 +64,9 @@ if __name__ == "__main__":
     if args.ignore_np_errs:
         np.seterr(all="ignore")
 
-    savepath_config = None
-
+    desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
+    savepath_config = savepath + desc
+    print(savepath_config)
 
     n_tries = 0
     done = False
@@ -73,8 +74,7 @@ if __name__ == "__main__":
         try:
             n_tries += 1
             config_id = random.randint(0, 1024)
-            desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
-            savepath_config = args.savepath + desc + f"_{config_id}/"
+            savepath_config = savepath_config + f"_{config_id}"
             print(savepath_config)
             os.mkdir(savepath_config)
             done = True
