@@ -64,7 +64,7 @@ if __name__ == "__main__":
     if args.ignore_np_errs:
         np.seterr(all="ignore")
 
-    desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
+    desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.n_iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
     savepath_config = savepath + desc
     print(savepath_config)
 
