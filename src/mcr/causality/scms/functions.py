@@ -3,10 +3,11 @@ import jax.numpy as jnp
 
 class StructuralFunction:
 
-    def __init__(self, fnc, inv=None, additive=False):
+    def __init__(self, fnc, inv=None, additive=False, binary=False):
         self.fnc = fnc
         self.inv_fnc = inv
         self.additive = additive
+        self.binary = binary
 
     @staticmethod
     def get_zero(obj):
@@ -47,7 +48,7 @@ def sigmoidal_binomial(x_pa, u_j):
     output = jnp.greater_equal(input, u_j.flatten()) * 1.0
     return output
 
-sigmoidal_binomial = StructuralFunction(sigmoidal_binomial, additive=True)
+sigmoidal_binomial = StructuralFunction(sigmoidal_binomial, binary=True)
 
 def nonlinear_additive(x_pa, u_j, coeffs=None):
     if coeffs is None:
@@ -69,7 +70,7 @@ def sigmoidal_binomial_torch(x_pa, u_j):
     output = torch.greater_equal(input, u_j.flatten()) * 1.0
     return output
 
-sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch)
+sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch, binary=True)
 
 def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
     if coeffs is None:

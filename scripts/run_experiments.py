@@ -56,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
                         default=True, type=bool)
 
+
     args = parser.parse_args()
 
     # set logging settings

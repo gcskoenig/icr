@@ -107,21 +107,25 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
 
     winner = [round(x, ndigits=rounding_digits) for x in winner]
 
-    goal_cost, intv_cost = None, None
-    if t_type == 'acceptance':
-        goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split=True)
-    elif t_type == 'improvement':
-        goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split=True)
+    def eval_cost(winner):
+        if t_type == 'acceptance':
+            goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split=True)
+        elif t_type == 'improvement':
+            goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split=True)
+        return goal_cost, intv_cost
+
+    goal_cost, intv_cost = eval_cost(winner)
 
     # if goal could not be met return the empty intervention
     goal_met = False
     if not gamma is None:
         goal_met = goal_cost < gamma
     elif not eta is None:
-        goal_met = goal_cost < gamma
+        goal_met = goal_cost < eta
 
     if not goal_met:
         winner = [0.0 for _ in winner]
+        goal_cost, intv_cost = eval_cost(winner)
 
     # cleanup
     if cleanup:

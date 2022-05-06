@@ -9,6 +9,7 @@ import numpy as np
 import logging
 from mcr.backend.dist import MultivariateIndependent
 from mcr.causality.scms.functions import linear_additive, linear_additive_torch
+import math
 
 from mcr.causality.scms._utils import numpyrodist_to_pyrodist
 
@@ -271,6 +272,12 @@ class GenericSCM(StructuralCausalModel):
         mixture = dist.MixtureSameFamily(mixing_dist, mv_d)
 
         return mixture
+
+    def predict_log_prob_obs(self, x_pre, y_name, y=1, **kwargs):
+        """P(Y=y|X=x_pre)"""
+        assert self.model[y_name]['fnc'].binary
+        d = self._abduct_node_obs_discrete(y_name, x_pre, **kwargs)
+        return math.log(d.probs)
 
     # def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1,
     #                                         nr_samples=1000, temperature=1):

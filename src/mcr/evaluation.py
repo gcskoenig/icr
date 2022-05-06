@@ -108,7 +108,6 @@ class GreedyEvaluator:
             perc_positive = values[self._y_name].mean()
 
         # meaningfulness_cost = perc_positive < gamma
-
         ind = np.abs(np.array(individual))
         cost = np.dot(ind, self._costs)
         return perc_positive, cost
