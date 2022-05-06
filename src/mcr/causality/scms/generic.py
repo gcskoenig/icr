@@ -277,67 +277,67 @@ class GenericSCM(StructuralCausalModel):
         """P(Y=y|X=x_pre)"""
         assert self.model[y_name]['fnc'].binary
         d = self._abduct_node_obs_discrete(y_name, x_pre, **kwargs)
-        return math.log(d.probs)
+        return torch.log(d.probs)
 
-    # def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1,
-    #                                         nr_samples=1000, temperature=1):
-    #     """Individualized post-recourse prediction, i.e. P(Y_post = y | x_pre, x_post)"""
-    #
-    #     # collect data from obs_pre and obs_post, covert into torch.tensors and make accesible in structured dicts
-    #
-    #     obs_df_pre = obs_pre.to_frame().T
-    #     obs_df_post = obs_post.to_frame().T
-    #
-    #     obs_df_dummy_pre = obs_df_pre.copy()
-    #     obs_df_dummy_post = obs_df_post.copy()
-    #
-    #     obs_df_dummy_pre[y_name] = np.array(0.0)
-    #     obs_df_dummy_post[y_name] = np.array(0.0)
-    #
-    #     x_pa_pre = torch.tensor(obs_df_pre[list(self.model[y_name]['parents'])].to_numpy())
-    #     x_pa_post = torch.tensor(obs_df_post[list(self.model[y_name]['parents'])].to_numpy())
-    #
-    #     x_ch_dict_pre = {}
-    #     x_ch_dict_post = {}
-    #
-    #     x_ch_pa_dict_pre = {}
-    #     x_ch_pa_dict_post = {}
-    #
-    #     for ch in self.model[y_name]['children']:
-    #         x_ch_dict_pre[ch] = torch.tensor(obs_df_pre[[ch]].to_numpy().flatten())
-    #         x_ch_dict_post[ch] = torch.tensor(obs_df_post[[ch]].to_numpy().flatten())
-    #
-    #         x_ch_pa_dict_pre[ch] = torch.tensor(obs_df_dummy_pre[list(self.model[ch]['parents'])].to_numpy())
-    #         x_ch_pa_dict_post[ch] = torch.tensor(obs_df_dummy_post[list(self.model[ch]['parents'])].to_numpy())
-    #
-    #     # pyro model for discrete inference of the binary target y given x_pre and x_post
-    #     def model_binary(x_pa, x_ch_dict=None, x_ch_pa_dict=None):
-    #         input = torch.tensor(0.0)
-    #         if torch.prod(torch.tensor(x_pa.shape)) > 0:
-    #             # input = jnp.mean(x_pa).flatten() + u_j
-    #             input = torch.sum(x_pa, axis=1)
-    #         input = torch.sigmoid(input)
-    #         x_j = pyro.sample(y_name, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "sequential"})
-    #         x_chs = []
-    #         for ch in self.model[y_name]['children']:
-    #             u_ch_dist_numpyro = self.model[ch]['noise_distribution']
-    #             u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-    #             u_ch = pyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
-    #             # insert x_j value into parent array
-    #             ix = list(self.model[ch]['parents']).index(y_name)
-    #             x_ch_pa = x_ch_pa_dict[ch]
-    #             x_ch_pa[:, ix] = x_j
-    #             x_ch_input = self.model[ch]['fnc_torch'](x_ch_pa, u_ch)
-    #             x_ch = pyro.sample("x_{}".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
-    #                                obs=x_ch_dict[ch])
-    #             x_chs.append(x_ch)
-    #         return x_j, x_chs
-    #
-    #     xj_posterior_model = pyro.infer.infer_discrete(model_binary, first_available_dim=-1, temperature=temperature)
-    #     samples = []
-    #     for jj in range(nr_samples):
-    #         samples.append(xj_posterior_model(x_pa, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)[0].numpy())
-    #
-    #     prob = np.mean(samples)
-    #     return dist.Binomial(probs=prob)
-    #     raise NotImplementedError('Not implemented in abstract class.')
+    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1,
+                                            nr_samples=1000, temperature=1):
+        """Individualized post-recourse prediction, i.e. P(Y_post = y | x_pre, x_post)"""
+
+        # collect data from obs_pre and obs_post, covert into torch.tensors and make accesible in structured dicts
+
+        obs_df_pre = obs_pre.to_frame().T
+        obs_df_post = obs_post.to_frame().T
+
+        obs_df_dummy_pre = obs_df_pre.copy()
+        obs_df_dummy_post = obs_df_post.copy()
+
+        obs_df_dummy_pre[y_name] = np.array(0.0)
+        obs_df_dummy_post[y_name] = np.array(0.0)
+
+        x_pa_pre = torch.tensor(obs_df_pre[list(self.model[y_name]['parents'])].to_numpy())
+        x_pa_post = torch.tensor(obs_df_post[list(self.model[y_name]['parents'])].to_numpy())
+
+        x_ch_dict_pre = {}
+        x_ch_dict_post = {}
+
+        x_ch_pa_dict_pre = {}
+        x_ch_pa_dict_post = {}
+
+        for ch in self.model[y_name]['children']:
+            x_ch_dict_pre[ch] = torch.tensor(obs_df_pre[[ch]].to_numpy().flatten())
+            x_ch_dict_post[ch] = torch.tensor(obs_df_post[[ch]].to_numpy().flatten())
+
+            x_ch_pa_dict_pre[ch] = torch.tensor(obs_df_dummy_pre[list(self.model[ch]['parents'])].to_numpy())
+            x_ch_pa_dict_post[ch] = torch.tensor(obs_df_dummy_post[list(self.model[ch]['parents'])].to_numpy())
+
+        # pyro model for discrete inference of the binary target y given x_pre and x_post
+        def model_binary(x_pa, x_ch_dict=None, x_ch_pa_dict=None):
+            input = torch.tensor(0.0)
+            if torch.prod(torch.tensor(x_pa.shape)) > 0:
+                # input = jnp.mean(x_pa).flatten() + u_j
+                input = torch.sum(x_pa, axis=1)
+            input = torch.sigmoid(input)
+            x_j = pyro.sample(y_name, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "sequential"})
+            x_chs = []
+            for ch in self.model[y_name]['children']:
+                u_ch_dist_numpyro = self.model[ch]['noise_distribution']
+                u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
+                u_ch = pyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
+                # insert x_j value into parent array
+                ix = list(self.model[ch]['parents']).index(y_name)
+                x_ch_pa = x_ch_pa_dict[ch]
+                x_ch_pa[:, ix] = x_j
+                x_ch_input = self.model[ch]['fnc_torch'](x_ch_pa, u_ch)
+                x_ch = pyro.sample("x_{}".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
+                                   obs=x_ch_dict[ch])
+                x_chs.append(x_ch)
+            return x_j, x_chs
+
+        xj_posterior_model = pyro.infer.infer_discrete(model_binary, first_available_dim=-1, temperature=temperature)
+        samples = []
+        for jj in range(nr_samples):
+            samples.append(xj_posterior_model(x_pa, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)[0].numpy())
+
+        prob = np.mean(samples)
+        return dist.Binomial(probs=prob)
+        raise NotImplementedError('Not implemented in abstract class.')
