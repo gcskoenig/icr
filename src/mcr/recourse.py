@@ -119,9 +119,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     # if goal could not be met return the empty intervention
     goal_met = False
     if not gamma is None:
-        goal_met = goal_cost < gamma
+        goal_met = gamma < goal_cost
     elif not eta is None:
-        goal_met = goal_cost < eta
+        goal_met = eta < goal_cost
 
     if not goal_met:
         winner = [0.0 for _ in winner]
