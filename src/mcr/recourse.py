@@ -124,7 +124,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
         goal_met = eta < goal_cost
 
     if not goal_met:
-        winner = [0.0 for _ in winner]
+        winner = [0 for _ in winner]
         goal_cost, intv_cost = eval_cost(winner)
 
     # cleanup
