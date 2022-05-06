@@ -280,8 +280,22 @@ class GenericSCM(StructuralCausalModel):
         p = torch.tensor(d.probs)
         return torch.log(p)
 
-    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1,
-                                            nr_samples=1000, temperature=1):
+    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1):
+        scm_post = self.do(intv_dict)
+        p_y_pre = self.model[y_name]['fnc'].raw(jnp.array(obs_pre[self.model[y_name]['parents']]))
+        p_y_post = scm_post.model[y_name]['fnc'].raw(jnp.array(obs_post[scm_post.model[y_name]['parents']]))
+
+        # TODO implement distribution that allows to compute the joint of pre/post observation
+
+        # TODO implement distribution that allows to compute the joint of pre/post observation children
+
+        # TODO compile the components to a joint probability distribution
+
+        # TODO copmute p(y_post) by integrating out y_pre and y_post in the respective desired way (See typora note)
+
+
+    def predict_log_prob_individualized_obs_pyro(self, obs_pre, obs_post, intv_dict, y_name, y=1,
+                                                 nr_samples=1000, temperature=1):
         """Individualized post-recourse prediction, i.e. P(Y_post = y | x_pre, x_post)"""
 
         # get post_intervention scm
@@ -337,11 +351,15 @@ class GenericSCM(StructuralCausalModel):
                                  infer={"enumerate": "parallel"})
 
             x_chs_pre = []
+
+            u_chs = {}
             for ch in self.model[y_name]['children']:
                 # sample noise variable
                 u_ch_dist_numpyro = self.model[ch]['noise_distribution']
                 u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-                u_ch = pyro.sample("{}{}_pre".format(self.u_prefix, ch), u_ch_dist)
+                u_ch = pyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
+
+                u_chs[ch] = u_ch
 
                 # insert x_j value into parent array
                 ix = list(self.model[ch]['parents']).index(y_name)
@@ -353,16 +371,14 @@ class GenericSCM(StructuralCausalModel):
 
                 # sample child
                 x_ch_input = self.model[ch]['fnc_torch'](x_ch_pa, u_ch).flatten()
-                x_ch = pyro.sample("x_{}_pre".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
+                x_ch = pyro.sample("x_{}_pre".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR**2),
                                    obs=x_ch_dict_pre[ch].repeat(x_ch_input.shape))
                 x_chs_pre.append(x_ch)
 
             x_chs_post = []
             for ch in scm_post.model[y_name]['children']:
-                # sample noise variable
-                u_ch_dist_numpyro = scm_post.model[ch]['noise_distribution']
-                u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-                u_ch = pyro.sample("{}{}_post".format(self.u_prefix, ch), u_ch_dist)
+                # get previously sampled latent state.
+                u_ch = u_chs[ch]
 
                 # insert x_j value into parent array
                 ix = list(scm_post.model[ch]['parents']).index(y_name)
@@ -374,7 +390,7 @@ class GenericSCM(StructuralCausalModel):
 
                 # sample child
                 x_ch_input = scm_post.model[ch]['fnc_torch'](x_ch_pa, u_ch).flatten()
-                x_ch = pyro.sample("x_{}_post".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
+                x_ch = pyro.sample("x_{}_post".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR**2),
                                    obs=x_ch_dict_post[ch].repeat(x_ch_input.shape))
                 x_chs_post.append(x_ch)
 
