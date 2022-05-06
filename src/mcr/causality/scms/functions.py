@@ -62,12 +62,12 @@ def nonlinear_additive(x_pa, u_j, coeffs=None):
 nonlinear_additive = StructuralFunction(nonlinear_additive, additive=True)
 
 def sigmoid_torch(x_pa):
-    input = torch.sum(x_pa, axis=1).flatten()
+    input = torch.sum(x_pa, dim=-1, keepdim=True)
     return torch.sigmoid(input)
 
 def sigmoidal_binomial_torch(x_pa, u_j):
     input = sigmoid_torch(x_pa)
-    output = torch.greater_equal(input, u_j.flatten()) * 1.0
+    output = torch.greater_equal(input, u_j) * 1.0
     return output
 
 sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch, binary=True)
@@ -78,17 +78,17 @@ def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
     input = 0
     for jj in range(len(coeffs)):
         input = input + jnp.power(x_pa[:, jj], jj+1)
-    output = input.flatten() + u_j.flatten()
+    output = input + u_j
     return output
 
 nonlinear_additive_torch = StructuralFunction(nonlinear_additive_torch, additive=True)
 
 
 def linear_additive_torch(x_pa, u_j):
-    result = u_j.flatten()
+    result = u_j
     if x_pa.shape[1] > 0:
-        mean_pars = torch.sum(x_pa, axis=1)
-        result = mean_pars.flatten() + result
+        mean_pars = x_pa.sum(dim=-1, keepdim=True)
+        result = mean_pars + result
     return result
 
 linear_additive_torch = StructuralFunction(linear_additive_torch, additive=True)

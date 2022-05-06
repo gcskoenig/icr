@@ -5,7 +5,7 @@ import torch.distributions as dist
 from mcr.causality.dags import DirectedAcyclicGraph
 import json
 import logging
-from mcr.backend.dist import TransformedUniform
+from mcr.distributions.multivariate import TransformedUniform
 
 logger = logging.getLogger()
 

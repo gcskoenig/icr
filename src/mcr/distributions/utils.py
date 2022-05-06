@@ -1,6 +1,6 @@
 import numpyro
-import pyro
 import torch
+import pyro
 import numpy as np
 
 def numpyrodist_to_pyrodist(d):
@@ -13,9 +13,15 @@ def numpyrodist_to_pyrodist(d):
         scale = torch.abs(torch.tensor(np.array(d.scale)))
         return pyro.distributions.Normal(loc, scale)
     elif isinstance(d, numpyro.distributions.Uniform):
-        high = torch.tensor(np.array(d.low))
         low = torch.tensor(np.array(d.low))
+        high = torch.tensor(np.array(d.high))
         return pyro.distributions.Uniform(high=high, low=low)
     else:
         raise NotImplementedError('Type not implemented')
 
+def add_uncertainty(p):
+    p = p.double()
+    if p > 0.5:
+        return p - 0.01
+    else:
+        return p + 0.01

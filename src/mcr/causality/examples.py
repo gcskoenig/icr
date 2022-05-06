@@ -33,6 +33,8 @@ y_name = 'y'
 
 unif_dist = numpyro.distributions.Uniform(low=jnp.array(0.0), high=jnp.array(1.0))
 normal_dist = numpyro.distributions.Normal(loc=jnp.array(0.0), scale=jnp.array(1.0))
+normal_dist_small_var = numpyro.distributions.Normal(loc=jnp.array(0.0),
+                                                    scale=jnp.array(0.1))
 
 mixing_dist = numpyro.distributions.Categorical(probs=jnp.ones(3)/3)
 multinormal_dist = numpyro.distributions.Normal(loc=jnp.array([-4, 0, 4]), scale=jnp.ones([3]))
@@ -49,7 +51,7 @@ SCM_3_VAR_CAUSAL = GenericSCM(
                                    [0, 0, 0, 0]]),
         var_names=['x1', 'x2', 'x3', 'y']
     ),
-    noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist, 'y': unif_dist},
+    noise_dict={'x1': normal_dist, 'x2': normal_dist, 'x3': normal_dist_small_var, 'y': unif_dist},
     fnc_dict={y_name: sigmoidal_binomial},
     fnc_torch_dict={y_name: sigmoidal_binomial_torch},
     sigmoidal=[y_name],

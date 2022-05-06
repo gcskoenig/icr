@@ -13,8 +13,8 @@ from deap.algorithms import eaMuPlusLambda
 from deap import tools
 from tqdm import tqdm
 
-from mcr.evaluation import GreedyEvaluator, indvd_to_intrv, similar
-
+from mcr.evaluation import GreedyEvaluator, similar
+from mcr.causality.utils import indvd_to_intrv
 
 # LOGGING
 

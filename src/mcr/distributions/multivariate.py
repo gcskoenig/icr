@@ -3,7 +3,6 @@ from numpyro.distributions.util import is_prng_key
 import jax.numpy as jnp
 import torch
 
-
 class MultivariateIndependent(dist.Distribution):
 
     def __init__(self, dss, validate_args=None):
