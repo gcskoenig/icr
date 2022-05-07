@@ -285,11 +285,11 @@ class GenericSCM(StructuralCausalModel):
         p_y_pre = self.model[y_name]['fnc'].raw(jnp.array(obs_pre[self.model[y_name]['parents']]))
         p_y_post = scm_post.model[y_name]['fnc'].raw(jnp.array(obs_post[scm_post.model[y_name]['parents']]))
 
-        # TODO implement distribution that allows to compute the joint of pre/post observation
+        # TODO implement distribution that allows to compute the joint of pre/post observation of y
 
-        # TODO implement distribution that allows to compute the joint of pre/post observation children
+        # TODO implement distribution that allows to compute the joint of pre/post observation of children
 
-        # TODO compile the components to a joint probability distribution
+        # TODO compile the components to a joint probability distribution over y and its markov blanket
 
         # TODO copmute p(y_post) by integrating out y_pre and y_post in the respective desired way (See typora note)
 
