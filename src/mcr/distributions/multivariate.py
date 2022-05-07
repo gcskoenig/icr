@@ -1,7 +1,7 @@
 import numpyro.distributions as dist
 from numpyro.distributions.util import is_prng_key
 import jax.numpy as jnp
-import torch
+from functools import partial, cache
 
 class MultivariateIndependent(dist.Distribution):
 
@@ -92,6 +92,69 @@ class BivariateBernoulli(dist.Distribution):
         # assigns inner result based on whether vl == 0 or ==1
         res = jnp.where(values[..., 0], inner1, inner0)
         return res
+
+
+class BivariateInvertible(dist.Distribution):
+
+    def __init__(self, d_j, fncs, xs_pa, y_ixs, validate_args=None, abc_width=0.0001):
+        """
+        fnc_pre/fnc_post are partial functions that have already been given the parent value as assigment
+        """
+        self.fnc_pre, self.fnc_post = fncs
+        self.x_pa_pre, self.x_pa_post = xs_pa
+        self.y_ix_pre, self.y_ix_post = y_ixs
+        self.d_j = d_j
+        self.abc_width = abc_width
+        batch_shape = (1, )
+        if len(self.x_pa_pre.shape) > 0:
+            batch_shape = (self.x_pa_pre.shape[0])
+        super(BivariateInvertible, self).__init__(
+            batch_shape=batch_shape,
+            event_shape=(2,),
+            validate_args=validate_args
+        )
+
+    @cache
+    def _get_completed_pa(self, ys):
+        x_pa_pre = self.x_pa_pre.copy()
+        x_pa_pre[..., self.y_ix_pre] = ys[0]
+        x_pa_post = self.x_pa_post.copy()
+        x_pa_post[..., self.y_ix_post] = ys[1]
+        return x_pa_pre, x_pa_post
+
+    @cache
+    def _get_partial(self, ys):
+        x_pa_pre, x_pa_post = self._get_completed_pa(ys)
+        fnc_pre, fnc_post = partial(self.fnc_pre, x_pa_pre), partial(self.fnc_post, x_pa_post)
+        return fnc_pre, fnc_post
+
+    @cache
+    def _get_partial_inv(self, ys):
+        x_pa_pre, x_pa_post = self._get_completed_pa(ys)
+        fnc_pre_inv, fnc_post_inv = partial(self.fnc_pre.inv, x_pa_pre), partial(self.fnc_post.inv, x_pa_post)
+        return fnc_pre_inv, fnc_post_inv
+
+    def sample(self, key, sample_shape=(), ys=(1, 1)):
+        assert is_prng_key(key)
+        sample_shape_mod = list(sample_shape)
+        sample_shape_mod[-1] = 1
+        fnc_pre, fnc_post = self._get_partial(ys)
+        u = self.d_j.sample(key, tuple(sample_shape_mod))
+        x1 = fnc_pre(u)
+        x2 = fnc_post(u)
+        sample = jnp.squeeze(jnp.stack([x1, x2], axis=1), axis=-1)
+        return sample
+
+    def log_prob(self, value, ys=(1, 1)):
+        fnc_pre_inv, fnc_post_inv = self._get_partial_inv(ys)
+        u1 = fnc_pre_inv(value[..., 0])
+        u2 = fnc_post_inv(value[..., 1])
+
+        log_prob1 = self.d_j.log_prob(u1)
+        d_kernel = dist.Normal(u1, self.abc_width)
+        log_prob2 = d_kernel.log_prob(u2)
+        return log_prob1 + log_prob2
+
 
 # class TransformedUniform(torch.distributions.Distribution):
 #

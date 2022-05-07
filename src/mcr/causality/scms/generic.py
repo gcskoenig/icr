@@ -9,7 +9,7 @@ import torch
 import jax.random as jrandom
 import numpy as np
 import logging
-from mcr.distributions.multivariate import MultivariateIndependent
+from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible
 from mcr.causality.scms.functions import linear_additive, linear_additive_torch
 
 
@@ -285,9 +285,41 @@ class GenericSCM(StructuralCausalModel):
         p_y_pre = self.model[y_name]['fnc'].raw(jnp.array(obs_pre[self.model[y_name]['parents']]))
         p_y_post = scm_post.model[y_name]['fnc'].raw(jnp.array(obs_post[scm_post.model[y_name]['parents']]))
 
-        # TODO implement distribution that allows to compute the joint of pre/post observation of y
+        # prepare data for the function input
+        obs_df_dummy_pre = obs_pre.to_frame().T
+        obs_df_dummy_post = obs_post.to_frame().T
+        obs_df_dummy_pre[y_name] = np.array(0.0)
+        obs_df_dummy_post[y_name] = np.array(0.0)
 
-        # TODO implement distribution that allows to compute the joint of pre/post observation of children
+
+        # distribution that allows to compute the joint of pre/post observation of y
+        dy = BivariateBernoulli(p_y_pre, p_y_post)
+
+        # distribution that allows to compute the joint of pre/post observation of children
+
+
+        # get distribution of the children with y as free parameter
+        d_chs = {}
+        for ch in self.model[y_name]['children']:
+            d_u_ch = self.model[ch]['noise_distribution']
+            fnc_pre = self.model[ch]['fnc'] # structural functions
+            fnc_post = scm_post[ch]['fnc']
+
+            x_ch_pa_pre = obs_df_dummy_pre[list(self.model[ch]['parents'])].to_numpy()
+            x_ch_pa_post = obs_df_dummy_post[list(scm_post.model[ch]['parents'])].to_numpy()
+            y_ix_pre = None
+            y_ix_post = None
+
+            d_ch = BivariateInvertible(d_u_ch, fnc_pre, fnc_post, x_ch_pa_pre, x_ch_pa_post, y_ix_pre, y_ix_post)
+            d_chs[ch] = d_ch
+
+
+            # assert fnc_pre.invertible and fnc_post.invertible
+            # fnc_pre_inv = fnc_pre.inv
+            # fnc_post_inv = fnc_post.inv
+
+            # collect parents to initialize the functions
+
 
         # TODO compile the components to a joint probability distribution over y and its markov blanket
 
