@@ -1,4 +1,4 @@
-import mcr.causality.examples as ex
+import mcr.causality.scms.examples as ex
 from mcr.experiment.run import run_experiment
 from mcr.experiment.compile import compile_experiments
 import random

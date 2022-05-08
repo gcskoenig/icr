@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import os
-import mcr.causality.examples as ex
+import mcr.causality.scms.examples as ex
 
 import logging
 

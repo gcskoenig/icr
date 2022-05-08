@@ -167,7 +167,7 @@ class GenericSCM(StructuralCausalModel):
         def log_posterior_y(y):
             nominator = log_prob_joint(y)
             denominator = jnp.log(jnp.exp(log_prob_joint(1)) + jnp.exp(log_prob_joint(0)))
-            return nominator - denominator
+            return (nominator - denominator).item()
 
         return dist.Binomial(probs=np.exp(log_posterior_y(1)), total_count=1)
 

@@ -1,5 +1,5 @@
 import logging
-import mcr.causality.examples as ex
+import mcr.causality.scms.examples as ex
 import time
 import pandas as pd
 

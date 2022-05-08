@@ -31,14 +31,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 import math
-import random
 import os
-import argparse
 
-import mcr.causality.examples as ex
+import mcr.causality.scms.examples as ex
 from mcr.recourse import recourse_population, save_recourse_result
-
-from mcr.experiment.compile import compile_experiments
 
 logging.getLogger().setLevel(20)
 
