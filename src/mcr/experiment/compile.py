@@ -4,9 +4,6 @@ import os
 import mcr.causality.examples as ex
 
 import logging
-import argparse
-
-from mcr.causality.scms import BinomialBinarySCM
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -15,7 +12,7 @@ def get_dirs(savepath):
     dirs = [os.path.join(savepath, dir, '') for dir in dirs]
     return dirs
 
-def compile_experiments(savepath, dirs=None, assess_robustness=False, scm_name=None):
+def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
     base_base_path = savepath
 
     if dirs is None:

@@ -1,13 +1,15 @@
+import jax.nn
 import torch
 import jax.numpy as jnp
 
 class StructuralFunction:
 
-    def __init__(self, fnc, inv=None, additive=False, binary=False):
+    def __init__(self, fnc, inv=None, additive=False, binary=False, raw=None):
         self.fnc = fnc
         self.inv_fnc = inv
         self.additive = additive
         self.binary = binary
+        self.raw_fnc = raw
 
     @staticmethod
     def get_zero(obj):
@@ -21,7 +23,9 @@ class StructuralFunction:
         return self.fnc(*args, **kwargs)
 
     def raw(self, x_pa, *args, **kwargs):
-        if self.additive:
+        if self.raw_fnc is not None:
+            return self.raw_fnc(x_pa, *args, **kwargs)
+        elif self.additive:
             return self.__call__(x_pa, StructuralFunction.get_zero(x_pa), *args, **kwargs)
         else:
             raise NotImplementedError('raw not implemented for non-additive functions')
@@ -41,14 +45,17 @@ class StructuralFunction:
         else:
             return self.inv_fnc(x_pa, x_j, *args, **kwargs)
 
+def sigmoid(x_pa):
+    input = jnp.sum(x_pa, axis=-1)
+    p = jax.nn.sigmoid(input)
+    return p
 
 def sigmoidal_binomial(x_pa, u_j):
-    input = jnp.sum(x_pa, axis=1).flatten()
-    input = 1/(1 + jnp.exp(-input))
-    output = jnp.greater_equal(input, u_j.flatten()) * 1.0
+    p = sigmoid(x_pa)
+    output = jnp.greater_equal(p, u_j.flatten()) * 1.0
     return output
 
-sigmoidal_binomial = StructuralFunction(sigmoidal_binomial, binary=True)
+sigmoidal_binomial = StructuralFunction(sigmoidal_binomial, binary=True, raw=sigmoid)
 
 def nonlinear_additive(x_pa, u_j, coeffs=None):
     if coeffs is None:
@@ -70,7 +77,7 @@ def sigmoidal_binomial_torch(x_pa, u_j):
     output = torch.greater_equal(input, u_j) * 1.0
     return output
 
-sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch, binary=True)
+sigmoidal_binomial_torch = StructuralFunction(sigmoidal_binomial_torch, binary=True, raw=sigmoid_torch)
 
 def nonlinear_additive_torch(x_pa, u_j, coeffs=None):
     if coeffs is None:

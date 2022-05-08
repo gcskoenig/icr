@@ -9,7 +9,7 @@ import torch
 import jax.random as jrandom
 import numpy as np
 import logging
-from mcr.distributions.multivariate import MultivariateIndependent
+from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible
 from mcr.causality.scms.functions import linear_additive, linear_additive_torch
 
 
@@ -137,7 +137,36 @@ class GenericSCM(StructuralCausalModel):
         # ATTENTION: We assume that the noise variable was already abducted together with the unobserved parent's noise
         return None
 
-    def _abduct_node_obs_discrete(self, node, obs, nr_samples=1000, temperature=1):
+    def _abduct_node_obs_discrete(self, node, obs):
+        obs_df = obs.to_frame().T
+        obs_df[node] = np.array(0.0)
+        x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
+        p_y = self.model[node]['fnc'].raw(x_pa)
+        d_y = dist.Bernoulli(p_y)
+
+
+        def log_prob_joint(y):
+            log_probs = []
+            for ch in self.model[node]['children']:
+                x_ch = obs_df[[ch]].to_numpy().flatten()
+                x_ch_pa = obs_df[list(self.model[ch]['parents'])].to_numpy()
+                d_u = self.model[ch]['noise_distribution']
+
+                y_ix = list(self.model[ch]['parents']).index(node)
+                x_ch_pa[..., y_ix] = y
+                u_ch = self.model[ch]['fnc'].inv(x_ch_pa, x_ch)
+                log_probs.append(d_u.log_prob(u_ch))
+            log_probs.append(d_y.log_prob(y))
+            return sum(log_probs)
+
+        def log_posterior_y(y):
+            nominator = log_prob_joint(y)
+            denominator = jnp.log(jnp.exp(log_prob_joint(1)) + jnp.exp(log_prob_joint(0)))
+            return nominator - denominator
+
+        return dist.Binomial(probs=np.exp(log_posterior_y(1)), total_count=1)
+
+    def _abduct_node_obs_discrete_pyro(self, node, obs, nr_samples=1000, temperature=1):
         # prepare data
         obs_df = obs.to_frame().T
         obs_df_dummy = obs_df.copy()
@@ -277,11 +306,72 @@ class GenericSCM(StructuralCausalModel):
         """P(Y=y|X=x_pre)"""
         assert self.model[y_name]['fnc'].binary
         d = self._abduct_node_obs_discrete(y_name, x_pre, **kwargs)
-        p = torch.tensor(d.probs)
+        p = torch.tensor(d.probs.item())
         return torch.log(p)
 
-    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1,
-                                            nr_samples=1000, temperature=1):
+    def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1):
+        """analytical computation of the individualized post-recourse probability"""
+        assert self.model[y_name]['sigmoidal']
+
+        scm_post = self.do(intv_dict)
+        p_y_pre = self.model[y_name]['fnc'].raw(jnp.array(obs_pre[list(self.model[y_name]['parents'])]))
+        p_y_post = scm_post.model[y_name]['fnc'].raw(jnp.array(obs_post[list(scm_post.model[y_name]['parents'])]))
+
+        # prepare data for the function input
+        obs_df_dummy_pre = obs_pre.to_frame().T
+        obs_df_dummy_post = obs_post.to_frame().T
+        obs_df_dummy_pre[y_name] = np.array(0.0)
+        obs_df_dummy_post[y_name] = np.array(0.0)
+
+        # distribution that allows to compute the joint of pre/post observation of y
+        dy = BivariateBernoulli(p_y_pre, p_y_post)
+
+        # distribution that allows to compute the joint of pre/post observation of children
+
+        # get distribution of the children with y as free parameter
+        d_chs = {}
+        val_chs = {}
+        for ch in self.model[y_name]['children']:
+            d_u_ch = self.model[ch]['noise_distribution']
+            fnc_pre = self.model[ch]['fnc'] # structural functions
+            fnc_post = scm_post.model[ch]['fnc']
+
+            x_ch_pa_pre = obs_df_dummy_pre[list(self.model[ch]['parents'])].to_numpy()
+            x_ch_pa_post = obs_df_dummy_post[list(scm_post.model[ch]['parents'])].to_numpy()
+            y_ix_pre = list(self.model[ch]['parents']).index(y_name)
+            y_ix_post = list(scm_post.model[ch]['parents']).index(y_name)
+
+            d_ch = BivariateInvertible(d_u_ch, (fnc_pre, fnc_post), (x_ch_pa_pre, x_ch_pa_post), (y_ix_pre, y_ix_post))
+            d_chs[ch] = d_ch
+
+            val_chs[ch] = jnp.array([obs_pre[ch], obs_post[ch]])
+
+        # TODO compile the components to a joint probability distribution over y and its markov blanket
+        def log_joint_prob_ys(ys):
+            """p(x, ys)"""
+            ys = jnp.array(ys)
+            log_probs_chs = [d_chs[ch].log_prob(val_chs[ch], ys=ys) for ch in d_chs.keys()]
+            log_prob_ys = dy.log_prob(ys)
+            res = sum(log_probs_chs) + log_prob_ys
+            return res
+
+        def marg_y_post(y_post):
+            """p(x, y_post)"""
+            ys_pre = [0, 1]
+            probs_ys = [jnp.exp(log_joint_prob_ys([y_pre, y_post])) for y_pre in ys_pre]
+            prob = sum(probs_ys)
+            return prob
+
+        def log_prob_y_post(y_post):
+            """p(y_post|x)"""
+            nominator = jnp.log(marg_y_post(y_post))
+            denominator = jnp.log(marg_y_post(1) + marg_y_post(0))
+            return nominator - denominator
+
+        return log_prob_y_post(y)
+
+    def predict_log_prob_individualized_obs_pyro(self, obs_pre, obs_post, intv_dict, y_name, y=1,
+                                                 nr_samples=1000, temperature=1):
         """Individualized post-recourse prediction, i.e. P(Y_post = y | x_pre, x_post)"""
 
         # get post_intervention scm
@@ -337,11 +427,15 @@ class GenericSCM(StructuralCausalModel):
                                  infer={"enumerate": "parallel"})
 
             x_chs_pre = []
+
+            u_chs = {}
             for ch in self.model[y_name]['children']:
                 # sample noise variable
                 u_ch_dist_numpyro = self.model[ch]['noise_distribution']
                 u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-                u_ch = pyro.sample("{}{}_pre".format(self.u_prefix, ch), u_ch_dist)
+                u_ch = pyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
+
+                u_chs[ch] = u_ch
 
                 # insert x_j value into parent array
                 ix = list(self.model[ch]['parents']).index(y_name)
@@ -353,16 +447,14 @@ class GenericSCM(StructuralCausalModel):
 
                 # sample child
                 x_ch_input = self.model[ch]['fnc_torch'](x_ch_pa, u_ch).flatten()
-                x_ch = pyro.sample("x_{}_pre".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
+                x_ch = pyro.sample("x_{}_pre".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR**2),
                                    obs=x_ch_dict_pre[ch].repeat(x_ch_input.shape))
                 x_chs_pre.append(x_ch)
 
             x_chs_post = []
             for ch in scm_post.model[y_name]['children']:
-                # sample noise variable
-                u_ch_dist_numpyro = scm_post.model[ch]['noise_distribution']
-                u_ch_dist = numpyrodist_to_pyrodist(u_ch_dist_numpyro)
-                u_ch = pyro.sample("{}{}_post".format(self.u_prefix, ch), u_ch_dist)
+                # get previously sampled latent state.
+                u_ch = u_chs[ch]
 
                 # insert x_j value into parent array
                 ix = list(scm_post.model[ch]['parents']).index(y_name)
@@ -374,7 +466,7 @@ class GenericSCM(StructuralCausalModel):
 
                 # sample child
                 x_ch_input = scm_post.model[ch]['fnc_torch'](x_ch_pa, u_ch).flatten()
-                x_ch = pyro.sample("x_{}_post".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR),
+                x_ch = pyro.sample("x_{}_post".format(ch), pyro.distributions.Normal(x_ch_input, GenericSCM.SMALL_VAR**2),
                                    obs=x_ch_dict_post[ch].repeat(x_ch_input.shape))
                 x_chs_post.append(x_ch)
 
