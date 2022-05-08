@@ -15,8 +15,11 @@ def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=
     log_probs = np.zeros(invs.shape[0])
     for ix in range(invs.shape[0]):
         intv_dict = indvd_to_intrv(scm, features, invs.iloc[ix, :], X_pre.iloc[0, :])
-        log_probs[ix] = torch.exp(scm.predict_log_prob_individualized_obs(X_pre.iloc[ix, :], X_post.iloc[ix, :],
-                                                                          intv_dict, y_name, y=y))
+        pred = scm.predict_log_prob_individualized_obs(X_pre.iloc[ix, :], X_post.iloc[ix, :],
+                                                       intv_dict, y_name, y=y)
+        if not isinstance(pred, torch.Tensor):
+            pred = torch.tensor(np.array(pred))
+        log_probs[ix] = torch.exp(pred)
     h_post_individualized = pd.DataFrame(log_probs, columns=['h_post_individualized'])
     h_post_individualized.index = X_pre.index.copy()
     return h_post_individualized
