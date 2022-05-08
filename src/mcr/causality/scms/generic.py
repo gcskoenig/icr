@@ -17,9 +17,18 @@ class GenericSCM(StructuralCausalModel):
 
     SMALL_VAR = 0.0001
 
-    def __init__(self, dag, fnc_dict={}, fnc_torch_dict={}, noise_dict={},
-                 u_prefix='u_', sigmoidal=[], costs=None, y_name=None):
+    def __init__(self, dag, fnc_dict=None, fnc_torch_dict=None, noise_dict=None,
+                 u_prefix='u_', sigmoidal=None, costs=None, y_name=None):
         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix, costs=costs, y_name=y_name)
+
+        if noise_dict is None:
+            noise_dict = {}
+        if fnc_torch_dict is None:
+            fnc_torch_dict = {}
+        if fnc_dict is None:
+            fnc_dict = {}
+        if sigmoidal is None:
+            sigmoidal = []
 
         for node in self.topological_order:
             if node not in fnc_dict:
@@ -79,9 +88,6 @@ class GenericSCM(StructuralCausalModel):
         if verbose:
             mcmc.print_summary()
         return mcmc
-
-    def predict_log_prob_obs(self, x_pre, y_name, y=1):
-        raise NotImplementedError('Not implemented yet')
 
     def _get_parent_values(self, node):
         vals = self.get_values(var_names=self.model[node]['parents'])
@@ -144,7 +150,6 @@ class GenericSCM(StructuralCausalModel):
         p_y = self.model[node]['fnc'].raw(x_pa)
         d_y = dist.Bernoulli(p_y)
 
-
         def log_prob_joint(y):
             log_probs = []
             for ch in self.model[node]['children']:
@@ -183,7 +188,7 @@ class GenericSCM(StructuralCausalModel):
         def model_binary(x_pa, x_ch_dict=None, x_ch_pa_dict=None):
             input = torch.tensor(0.0)
             if torch.prod(torch.tensor(x_pa.shape)) > 0:
-                input = torch.sum(x_pa, axis=1)
+                input = torch.sum(x_pa, dim=1)
             input = torch.sigmoid(input)
             x_j = pyro.sample(node, pyro.distributions.Bernoulli(probs=input), infer={"enumerate": "parallel"})
             x_chs = []
@@ -234,7 +239,7 @@ class GenericSCM(StructuralCausalModel):
         assert isinstance(self.model[node]['noise_distribution'], dist.Uniform)
 
         # infer discrete latent node distribution
-        d_node = self._abduct_node_obs_discrete(node, obs, nr_samples=nr_samples)
+        d_node = self._abduct_node_obs_discrete(node, obs)
 
         # prepare data
         obs_df = obs.to_frame().T
@@ -305,7 +310,7 @@ class GenericSCM(StructuralCausalModel):
     def predict_log_prob_obs(self, x_pre, y_name, y=1, **kwargs):
         """P(Y=y|X=x_pre)"""
         assert self.model[y_name]['fnc'].binary
-        d = self._abduct_node_obs_discrete(y_name, x_pre, **kwargs)
+        d = self._abduct_node_obs_discrete(y_name, x_pre)
         p = torch.tensor(d.probs.item())
         return torch.log(p)
 
