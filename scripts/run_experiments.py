@@ -52,6 +52,9 @@ if __name__ == "__main__":
     parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
     parser.add_argument("--n_digits", help="number of decimal points for rounding", type=int, default=2)
     parser.add_argument("--logging_level", type=int, default=20)
+    parser.add_argument("--predict_individualized", type=bool, default=True)
+    parser.add_argument("--assess_robustness", type=bool, default=False)
+    parser.add_argument("--nr_refits", type=int, default=5)
 
     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
                         default=True, type=bool)
@@ -85,6 +88,8 @@ if __name__ == "__main__":
     run_experiment(args.scm_name, args.N, args.gamma, args.thresh, args.lbd, savepath_config,
                    NGEN=args.NGEN, iterations=args.n_iterations, POP_SIZE=args.POP_SIZE,
                    rounding_digits=args.n_digits,
-                   use_scm_pred=False)
+                   use_scm_pred=False, predict_individualized=args.predict_individualized,
+                   assess_robustness=args.assess_robustness,
+                   nr_refits_batch0=args.nr_refits)
 
     compile_experiments(args.savepath, args.scm_name)
