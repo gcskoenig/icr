@@ -1,139 +1,14 @@
-import random
+import logging
 import math
+
 import numpy as np
 import pandas as pd
-import torch
-import json
-
 from sklearn.metrics import accuracy_score
-import logging
-
-from deap import base, creator
-from deap.algorithms import eaMuPlusLambda
-from deap import tools
 from tqdm import tqdm
 
-from mcr.evaluation import GreedyEvaluator, similar
 from mcr.causality.utils import indvd_to_intrv
-
-# LOGGING
-
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
-
-# RECOURSE FUNCTIONS
-
-
-
-def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):
-    """
-    Computes the individualized post-recourse predictions (probabilities)
-    """
-    log_probs = np.zeros(invs.shape[0])
-    for ix in range(invs.shape[0]):
-        intv_dict = indvd_to_intrv(scm, features, invs.iloc[ix, :], X_pre.iloc[0, :])
-        log_probs[ix] = torch.exp(scm.predict_log_prob_individualized_obs(X_pre.iloc[ix, :], X_post.iloc[ix, :],
-                                                                          intv_dict, y_name, y=y))
-    h_post_individualized = pd.DataFrame(log_probs, columns=['h_post_individualized'])
-    h_post_individualized.index = X_pre.index.copy()
-    return h_post_individualized
-
-def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
-             eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
-             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False):
-
-    evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
-                                subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
-                                y_name=y_name, multi_objective=multi_objective)
-
-    if multi_objective:
-        creator.create("FitnessMin", base.Fitness, weights=(lbd, -1.0))
-    else:
-        creator.create("FitnessMin", base.Fitness, weights=(1.0,))
-    creator.create("Individual", list, fitness=creator.FitnessMin)
-
-    IND_SIZE = len(features)
-
-    toolbox = base.Toolbox()
-    if binary:
-        toolbox.register("intervene", random.randint, 0, 1)
-    else:
-        toolbox.register("intervene", random.random)
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
-    toolbox.register("population", tools.initRepeat, list, toolbox.individual)
-
-    toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
-    if binary:
-        toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
-    else:
-        toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
-    toolbox.register("select", tools.selNSGA2)
-
-    if t_type == 'acceptance':
-        assert not predict_log_proba is None
-        assert not thresh is None
-        toolbox.register("evaluate", evaluator.evaluate, eta, thresh, r_type)
-    elif t_type == 'improvement':
-        assert not y_name is None
-        assert not gamma is None
-        toolbox.register("evaluate", evaluator.evaluate_meaningful, gamma, r_type)
-    else:
-        raise NotImplementedError('only t_types acceptance or improvement are available')
-
-    stats = tools.Statistics(key=lambda ind: np.array(ind.fitness.values))
-    stats.register("avg", np.mean, axis=0)
-    stats.register("std", np.std, axis=0)
-    stats.register("min", np.min, axis=0)
-    stats.register("max", np.max, axis=0)
-
-    pop = toolbox.population(n=POP_SIZE)
-    if multi_objective:
-        hof = tools.ParetoFront(similar)
-    else:
-        hof = tools.HallOfFame(max(50, round(POP_SIZE/10)))
-    pop, logbook = eaMuPlusLambda(pop, toolbox, POP_SIZE, POP_SIZE * 2, CX_PROB, MX_PROB, NGEN,
-                                  stats=stats, halloffame=hof, verbose=False)
-
-    if multi_objective:
-        invds = np.array(list(hof))
-        perf = np.array([x.values for x in list(hof.keys)])
-
-        min_cost_constrained = np.min(perf[perf[:, 0] > 0.95, 1])
-        best_ix = np.where(perf[:, 1] == min_cost_constrained)[0][0]
-        winner = invds[best_ix, :]
-    else:
-        winner = list(hof)[0]
-
-    winner = [round(x, ndigits=rounding_digits) for x in winner]
-
-    def eval_cost(winner):
-        if t_type == 'acceptance':
-            goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split=True)
-        elif t_type == 'improvement':
-            goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split=True)
-        return goal_cost, intv_cost
-
-    goal_cost, intv_cost = eval_cost(winner)
-
-    # if goal could not be met return the empty intervention
-    goal_met = False
-    if not gamma is None:
-        goal_met = gamma < goal_cost
-    elif not eta is None:
-        goal_met = eta < goal_cost
-
-    if not goal_met:
-        winner = [0 for _ in winner]
-        goal_cost, intv_cost = eval_cost(winner)
-
-    # cleanup
-    if cleanup:
-        del creator.FitnessMin
-        del creator.Individual
-        del evaluator
-
-    return winner, pop, logbook, goal_cost, intv_cost
+from mcr.recourse.recourse import recourse
+from mcr.recourse.utils import compute_h_post_individualized
 
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
@@ -277,23 +152,3 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
     logging.debug('Done.')
     return U, X_pre, y_pre, y_hat_pre, interventions, X_post, y_post, h_post, costss, stats
-
-
-def save_recourse_result(savepath_exp, result_tupl):
-    U, X_pre, y_pre, y_hat_pre, invs, X_post, y_post, h_post, costss, stats = result_tupl
-    U.to_csv(savepath_exp + 'U.csv')
-    X_pre.to_csv(savepath_exp + 'X_pre.csv')
-    y_pre.to_csv(savepath_exp + 'y_pre.csv')
-    y_hat_pre.to_csv(savepath_exp + 'y_hat_pre.csv')
-    invs.to_csv(savepath_exp + 'invs.csv')
-    X_post.to_csv(savepath_exp + 'X_post.csv')
-    y_post.to_csv(savepath_exp + 'y_post.csv')
-    h_post.to_csv(savepath_exp + 'h_post.csv')
-    costss.to_csv(savepath_exp + 'costss.csv')
-
-    try:
-        with open(savepath_exp + 'stats.json', 'w') as f:
-            json.dump(stats, f)
-    except Exception as exc:
-        logging.warning('stats.json could not be saved.')
-        logging.info('Exception: {}'.format(exc))
