@@ -2,6 +2,8 @@ import numpyro.distributions as dist
 from numpyro.distributions.util import is_prng_key
 import jax.numpy as jnp
 from functools import partial, cache
+import torch
+
 
 class MultivariateIndependent(dist.Distribution):
 
@@ -88,7 +90,7 @@ class BivariateBernoulli(dist.Distribution):
         # inner results given vl==1: pl if vh==1 and 0 if vh==0
         inner1 = jnp.where(values[..., 1], jnp.log(pl), jnp.log(0))
         # inner results given vl==0: ph-pl if vh==1 and 1-ph if vh==0
-        inner0 = jnp.where(values[..., 1], jnp.log(ph - pl), jnp.log(1-ph))
+        inner0 = jnp.where(values[..., 1], jnp.log(ph - pl), jnp.log(1 - ph))
         # assigns inner result based on whether vl == 0 or ==1
         res = jnp.where(values[..., 0], inner1, inner0)
         return res
@@ -96,7 +98,7 @@ class BivariateBernoulli(dist.Distribution):
 
 class BivariateInvertible(dist.Distribution):
 
-    def __init__(self, d_j, fncs, xs_pa, y_ixs, validate_args=None, abc_width=0.0001):
+    def __init__(self, d_j, fncs, xs_pa, y_ixs, validate_args=None):
         """
         fnc_pre/fnc_post are partial functions that have already been given the parent value as assigment
         """
@@ -104,8 +106,7 @@ class BivariateInvertible(dist.Distribution):
         self.x_pa_pre, self.x_pa_post = xs_pa
         self.y_ix_pre, self.y_ix_post = y_ixs
         self.d_j = d_j
-        self.abc_width = abc_width
-        batch_shape = (1, )
+        batch_shape = (1,)
         if len(self.x_pa_pre.shape) > 0:
             batch_shape = (self.x_pa_pre.shape[0])
         super(BivariateInvertible, self).__init__(
@@ -114,21 +115,20 @@ class BivariateInvertible(dist.Distribution):
             validate_args=validate_args
         )
 
-    @cache
     def _get_completed_pa(self, ys):
         x_pa_pre = self.x_pa_pre.copy()
-        x_pa_pre[..., self.y_ix_pre] = ys[0]
+        if self.y_ix_pre is not None:
+            x_pa_pre[..., self.y_ix_pre] = ys[0]
         x_pa_post = self.x_pa_post.copy()
-        x_pa_post[..., self.y_ix_post] = ys[1]
+        if self.y_ix_post is not None:
+            x_pa_post[..., self.y_ix_post] = ys[1]
         return x_pa_pre, x_pa_post
 
-    @cache
     def _get_partial(self, ys):
         x_pa_pre, x_pa_post = self._get_completed_pa(ys)
         fnc_pre, fnc_post = partial(self.fnc_pre, x_pa_pre), partial(self.fnc_post, x_pa_post)
         return fnc_pre, fnc_post
 
-    @cache
     def _get_partial_inv(self, ys):
         x_pa_pre, x_pa_post = self._get_completed_pa(ys)
         fnc_pre_inv, fnc_post_inv = partial(self.fnc_pre.inv, x_pa_pre), partial(self.fnc_post.inv, x_pa_post)
@@ -151,31 +151,33 @@ class BivariateInvertible(dist.Distribution):
         u2 = fnc_post_inv(value[..., 1])
 
         log_prob1 = self.d_j.log_prob(u1)
-        d_kernel = dist.Normal(u1, self.abc_width)
-        log_prob2 = d_kernel.log_prob(u2)
+        u1_r = jnp.round(u1, decimals=2)
+        d_2 = dist.Delta(u1_r)
+        log_prob2 = d_2.log_prob(jnp.round(u2, decimals=2))
+        # TODO make sure that both similar
         return log_prob1 + log_prob2
 
 
-# class TransformedUniform(torch.distributions.Distribution):
-#
-#     def __init__(self, sigma, p_y_1, **kwargs):
-#         self.phi = torch.tensor(sigma)
-#         self.p_y_1 = torch.tensor(p_y_1)
-#
-#         self.p_smaller = self.p_y_1 / self.phi
-#         self.p_larger = (1 - self.p_y_1) / (1 - self.phi)
-#
-#         self.factor_smaller = torch.tensor(1.0) / self.p_smaller
-#         self.factor_larger = torch.tensor(1.0) / self.p_larger
-#
-#         super().__init__(**kwargs)
-#
-#     def rsample(self, sample_shape=torch.Size()):
-#         v = torch.distributions.Uniform(0, 1).rsample(sample_shape)
-#         smpl = torch.min(v, self.p_y_1) * self.factor_smaller + torch.max(torch.tensor(0), v - self.p_y_1) * self.factor_larger
-#         return smpl
-#
-#     def log_prob(self, value):
-#         res = (value <= self.phi) * self.p_smaller + (value > self.phi) * self.p_larger
-#         res = torch.log(res)
-#         return res
+class TransformedUniform(torch.distributions.Distribution):
+
+    def __init__(self, sigma, p_y_1, **kwargs):
+        self.phi = torch.tensor(sigma)
+        self.p_y_1 = torch.tensor(p_y_1)
+
+        self.p_smaller = self.p_y_1 / self.phi
+        self.p_larger = (1 - self.p_y_1) / (1 - self.phi)
+
+        self.factor_smaller = torch.tensor(1.0) / self.p_smaller
+        self.factor_larger = torch.tensor(1.0) / self.p_larger
+
+        super().__init__(**kwargs)
+
+    def rsample(self, sample_shape=torch.Size()):
+        v = torch.distributions.Uniform(0, 1).rsample(sample_shape)
+        smpl = torch.min(v, self.p_y_1) * self.factor_smaller + torch.max(torch.tensor(0), v - self.p_y_1) * self.factor_larger
+        return smpl
+
+    def log_prob(self, value):
+        res = (value <= self.phi) * self.p_smaller + (value > self.phi) * self.p_larger
+        res = torch.log(res)
+        return res

@@ -9,7 +9,7 @@ class StructuralFunction:
         self.inv_fnc = inv
         self.additive = additive
         self.binary = binary
-        self.raw = raw
+        self.raw_fnc = raw
 
     @staticmethod
     def get_zero(obj):
@@ -23,8 +23,8 @@ class StructuralFunction:
         return self.fnc(*args, **kwargs)
 
     def raw(self, x_pa, *args, **kwargs):
-        if not self.raw is None:
-            return self.raw(x_pa, *args, **kwargs)
+        if self.raw_fnc is not None:
+            return self.raw_fnc(x_pa, *args, **kwargs)
         elif self.additive:
             return self.__call__(x_pa, StructuralFunction.get_zero(x_pa), *args, **kwargs)
         else:
