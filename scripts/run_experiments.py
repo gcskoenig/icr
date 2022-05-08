@@ -87,4 +87,4 @@ if __name__ == "__main__":
                    rounding_digits=args.n_digits,
                    use_scm_pred=False)
 
-    compile_experiments(args.savepath)
+    compile_experiments(args.savepath, args.scm_name)
