@@ -58,7 +58,6 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
 
         # loop over iterations/experiments to fill the result dataframes
         it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
-        n_iterations = len(it_dirs)
         for it in it_dirs:
             path_it = path + '{}/'.format(it)
             for r_type in r_types:
@@ -68,10 +67,10 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                     # try to read the stats.json
                     try:
                         f = None
-                        if 'batch2_stats.json' in os.listdir(path_it_config):
-                            f = open(path_it_config + 'batch2_stats.json')
-                        elif 'stats.json' in os.listdir(path_it_config):
+                        if 'stats.json' in os.listdir(path_it_config):
                             f = open(path_it_config + 'stats.json')
+                        elif 'batch2_stats.json' in os.listdir(path_it_config):
+                            f = open(path_it_config + 'batch2_stats.json')
                         else:
                             raise FileNotFoundError('Neither stats.json nor batch2_stats.json found.')
                         stats = json.load(f)

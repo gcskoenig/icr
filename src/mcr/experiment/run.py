@@ -132,7 +132,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         # split into batches
         batch_size = math.floor(N / N_BATCHES)
 
-        logging.info('Creating three batches of data with {} observations'.format(batch_size))
+        logging.info('Creating {} batches of data with {} observations'.format(N_BATCHES, batch_size))
 
         batches = []
         i = 0
@@ -143,7 +143,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             batches.append((X_i, y_i, U_i))
             i += batch_size
 
-        logging.info('Split the data into {} batches'.format(3))
+        logging.info('Split the data into {} batches'.format(N_BATCHES))
 
         # fitting model on the first batch
 
@@ -240,7 +240,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
                                                         proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                                         thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
-                                                        predict_individualized=predict_individualized)
+                                                        predict_individualized=predict_individualized,
+                                                        NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)
                 X_batch2_post_impl, y_batch2_post_impl = result_tpl_batch2[5], result_tpl_batch2[6]
                 recourse_recommended_ixs_batch2 = result_tpl_batch2[9]['recourse_recommended_ixs']
 
