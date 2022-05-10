@@ -147,7 +147,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
         # fitting model on the first batch
 
-        logging.info('Fitting model...')
+        logging.info('Fitting model (type {})...'.format(model_type))
 
         model = None
         if model_type == 'logreg':
