@@ -55,6 +55,7 @@ if __name__ == "__main__":
     parser.add_argument("--assess_robustness", type=bool, default=False)
     parser.add_argument("--nr_refits", type=int, default=5)
     parser.add_argument("--model_type", type=str, default='logreg')
+    parser.add_argument("--id", type=int, default=None)
 
     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
                         default=True, type=bool)
@@ -74,16 +75,21 @@ if __name__ == "__main__":
 
     n_tries = 0
     done = False
-    while n_tries < 5 and not done:
-        try:
-            n_tries += 1
-            config_id = random.randint(0, 1024)
-            savepath_config = savepath_config + f"_{config_id}"
-            print(savepath_config)
-            os.mkdir(savepath_config)
-            done = True
-        except Exception as err:
-            logging.warning('Could not generate folder...{}'.format(savepath_config))
+    if args.id is None:
+        while n_tries < 5 and not done:
+            try:
+                n_tries += 1
+                config_id = random.randint(0, 1024)
+                savepath_config = savepath_config + f"_{config_id}"
+                print(savepath_config)
+                os.mkdir(savepath_config)
+                done = True
+            except Exception as err:
+                logging.warning('Could not generate folder...{}'.format(savepath_config))
+    else:
+        config_id = args.id
+        savepath_config = savepath_config + f"_{config_id}"
+        assert os.path.isdir(savepath_config)
 
     run_experiment(args.scm_name, args.N, args.gamma, args.thresh, args.lbd, savepath_config,
                    NGEN=args.NGEN, iterations=args.n_iterations, POP_SIZE=args.POP_SIZE,

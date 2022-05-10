@@ -8,7 +8,7 @@ import logging
 logging.getLogger().setLevel(logging.INFO)
 
 def get_dirs(savepath):
-    dirs = [name for name in os.listdir(savepath) if os.path.isdir(os.path.join(savepath, name))]
+    dirs = [name for name in os.listdir(savepath) if os.path.isdir(os.path.join(savepath, name)) and name[0].isdigit()]
     dirs = [os.path.join(savepath, dir, '') for dir in dirs]
     return dirs
 
@@ -174,7 +174,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             logging.info('Not successful in directory {}'.format(dir))
             logging.info(err)
 
-    df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mean'])
+    df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mea'])
     df_resultss.to_csv(base_base_path + 'resultss.csv')
 
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])

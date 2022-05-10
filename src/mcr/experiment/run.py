@@ -113,7 +113,15 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
     if assess_robustness:
         N_BATCHES = 3
 
-    for ii in range(iterations):
+    # find lowest experiment number that is completed
+    dirs = os.listdir(savepath)
+    existing_runs = 0
+    for ii in range(len(dirs)):
+        if f'{ii}' in dirs:
+            existing_runs = ii + 1
+
+    logging.info(f'results for up to {existing_runs} runs found')
+    for ii in range(existing_runs, existing_runs + iterations):
         logging.info('')
         logging.info('')
         logging.info('-------------')

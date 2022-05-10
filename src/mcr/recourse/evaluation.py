@@ -43,7 +43,11 @@ class GreedyEvaluator:
             cntxt = scm_.sample_context(self._subpopulation_size)
 
         # sample from intervened distribution for obs_sub
-        values = scm_.compute(do=intv_dict)
+        try:
+            values = scm_.compute(do=intv_dict)
+        except Exception as exc:
+            print(intv_dict)
+            raise exc
         predictions = self._predict_log_proba(values[self._features])[:, 1]
         expected_above_thresh = np.mean(np.exp(predictions) >= thresh)
 

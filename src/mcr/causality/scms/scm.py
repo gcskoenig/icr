@@ -306,7 +306,14 @@ class StructuralCausalModel:
         """
         sampling using structural equations
         """
-        raise NotImplementedError('not implemented in semi-abstract class')
+        if self.model[node]['intervened']:
+            d = self.model[node]['noise_distribution']
+            if isinstance(d, torch.Tensor):
+                return d.repeat(self.get_sample_size())
+            else:
+                return torch.tensor(np.array(d.sample((self.get_sample_size(),))))
+        else:
+            raise NotImplementedError('not implemented in semi-abstract class')
 
     def compute(self, do={}):
         """

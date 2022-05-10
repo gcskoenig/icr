@@ -94,11 +94,14 @@ class GenericSCM(StructuralCausalModel):
         return vals
 
     def compute_node(self, node):
-        par_values = self._get_parent_values(node).to_numpy()
-        noise_values = self.get_noise_values()[[self.u_prefix+node]].to_numpy().flatten()
-        vals = self.model[node]['fnc'](par_values, noise_values)
-        vals = torch.tensor(np.array(vals.flatten()))
-        return vals
+        if not self.model[node]['intervened']:
+            par_values = self._get_parent_values(node).to_numpy()
+            noise_values = self.get_noise_values()[[self.u_prefix+node]].to_numpy().flatten()
+            vals = self.model[node]['fnc'](par_values, noise_values)
+            vals = torch.tensor(np.array(vals.flatten()))
+            return vals
+        else:
+            return super(GenericSCM, self).compute_node(node)
 
     def _abduct_node_par_mcmc(self, node, obs, warmup_steps=200, nr_samples=400,
                               nr_chains=1, **kwargs):
