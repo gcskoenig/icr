@@ -89,6 +89,7 @@ if __name__ == "__main__":
     else:
         config_id = args.id
         savepath_config = savepath_config + f"_{config_id}"
+        print('savepath_config: {}'.format(savepath_config))
         assert os.path.isdir(savepath_config)
 
     run_experiment(args.scm_name, args.N, args.gamma, args.thresh, args.lbd, savepath_config,
