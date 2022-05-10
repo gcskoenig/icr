@@ -76,6 +76,33 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
 )
 
 
+fn_2 = lambda x_1, u_2: -1 + 3 * jax.nn.sigmoid(-2 * x_1[..., 0]) + u_2
+fn_2_torch = lambda x_1, u_2: -1 + 3 * torch.sigmoid(-2 * x_1[..., 0]) + u_2
+# assuming x is ordered as (x1, x2)
+fn_3 = lambda x, u_3: -0.05 * x[..., 0] + 0.25 * x[..., 1]**2 + u_3
+# assuming the parents are ordered as (x3, y, x4)
+fn_5 = lambda x, u_5: x[..., 0] * 0.2 - x[..., 1] - 0.2 * x[..., 2] + u_5
+
+SCM_5_VAR_NONLINEAR = GenericSCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 1, 1, 1, 0, 0],
+                                   [0, 0, 1, 1, 0, 0],
+                                   [0, 0, 0, 1, 0, 1],
+                                   [0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0]]),
+        var_names=['x1', 'x2', 'x3', 'y', 'x4', 'x5']
+    ),
+    noise_dict={'x1': normal_dist, 'x2': normal_dist_small_var, 'x3': normal_dist, 'x4': normal_dist,
+                'x5': normal_dist_small_var, 'y': unif_dist},
+    fnc_dict={'x2': fn_2, 'x3': fn_3, 'x5': fn_5, 'y': sigmoidal_binomial},
+    fnc_torch_dict={'x2': fn_2_torch, 'x3': fn_3, 'x5': fn_5, 'y': sigmoidal_binomial_torch},
+    sigmoidal=['y'],
+    costs=[1.0, 1.0, 1.0, 1.0, 1.0],
+    y_name='y'
+)
+
 #  OVERVIEW
 
-scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL}
+scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL,
+            '5var-nonlinear': SCM_5_VAR_NONLINEAR}
