@@ -76,12 +76,19 @@ SCM_3_VAR_NONCAUSAL = GenericSCM(
 )
 
 
-fn_2 = lambda x_1, u_2: -1 + 3 * jax.nn.sigmoid(-2 * x_1[..., 0]) + u_2
+fn_2 = lambda x_1, u_2:  -1 + 3 * jax.nn.sigmoid(-2 * x_1[..., 0]) + u_2
+fn_2 = StructuralFunction(fn_2, additive=True)
+
 fn_2_torch = lambda x_1, u_2: -1 + 3 * torch.sigmoid(-2 * x_1[..., 0]) + u_2
+fn_2_torch = StructuralFunction(fn_2_torch, additive=True)
+
 # assuming x is ordered as (x1, x2)
 fn_3 = lambda x, u_3: -0.05 * x[..., 0] + 0.25 * x[..., 1]**2 + u_3
+fn_3 = StructuralFunction(fn_3, additive=True)
+
 # assuming the parents are ordered as (x3, y, x4)
 fn_5 = lambda x, u_5: x[..., 0] * 0.2 - x[..., 1] - 0.2 * x[..., 2] + u_5
+fn_5 = StructuralFunction(fn_5, additive=True)
 
 SCM_5_VAR_NONLINEAR = GenericSCM(
     dag=DirectedAcyclicGraph(
