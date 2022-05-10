@@ -121,7 +121,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             existing_runs = ii + 1
 
     logging.info(f'results for up to {existing_runs} runs found')
-    for ii in range(existing_runs, existing_runs + iterations):
+    for ii in range(existing_runs, iterations):
         logging.info('')
         logging.info('')
         logging.info('-------------')
