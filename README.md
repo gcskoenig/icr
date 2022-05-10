@@ -7,11 +7,10 @@ We used python version ``3.9.7``. We recommend to set up a fresh virtual environ
 
 ### Dependencies
 
-We recommend to install ``torch``, ``scikit-learn``, ``matplotlib``, ``seaborn``,  ``ray``, ``networkx``, ``pyro`` as well as ``jax``and ``numpyro`` seperately.
+We recommend to install ``torch``, ``scikit-learn``, ``matplotlib``, ``seaborn``,  ``networkx``, ``pyro``, ``deap`` as well as ``jax``and ``numpyro`` seperately.
 For torch, follow the instruction on their [website](https://pytorch.org/get-started/locally/).
 For scikit-learn check out [their website](https://scikit-learn.org/stable/install.html).
 For pyro, follow the instructions on their [website](https://docs.pyro.ai/en/0.3.1/installation.html).
-For ray, only `ray[tune]` is required. Follow the instructions in the [ray documentation](https://docs.ray.io/en/latest/installation.html).
 
 The dependencies can be found in the `requirements.txt` file.
 You can install them using ``pip install -r requirements.txt``.
