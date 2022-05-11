@@ -278,6 +278,10 @@ class GenericSCM(StructuralCausalModel):
         mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains,
                                     model_binary, x_j, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
 
+        # TODO include latent distribution for discrete variables (in the form of the respective adapted uniform var)
+
+        # TODO replace mcmc based sampling with analytical inference
+
         ds_0 = []
         unif_0 = dist.Uniform(activation, 1)
         ds_0.append(unif_0)
