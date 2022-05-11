@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
              eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
-             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False):
+             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False, return_stats=False):
 
     evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
                                 subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
@@ -110,6 +110,17 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
         del creator.Individual
         evaluator.clear_cache()
         toolbox.unregister('evaluate')
+        toolbox.unregister('mutate')
+        toolbox.unregister('select')
+        toolbox.unregister('individual')
+        toolbox.unregister('mate')
+        toolbox.unregister('population')
         del evaluator
+        if not return_stats:
+            del pop
+            del logbook
 
-    return winner, pop, logbook, goal_cost, intv_cost
+    if return_stats:
+        return winner, pop, logbook, goal_cost, intv_cost
+    else:
+        return winner, goal_cost, intv_cost

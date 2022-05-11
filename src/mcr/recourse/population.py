@@ -64,14 +64,12 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
 
         # compute optimal action
         cntxt = scm_.sample_context(size=nsamples)
-        winner, pop, logbook, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
-                                                              predict_log_proba=predict_log_proba, y_name=y_name,
-                                                              gamma=gamma, eta=eta,
-                                                              thresh=thresh, lbd=lbd,
-                                                              subpopulation_size=subpopulation_size,
-                                                              NGEN=NGEN, POP_SIZE=POP_SIZE,
-                                                              rounding_digits=rounding_digits,
-                                                              multi_objective=False)
+        winner, goal_cost, intv_cost = recourse(scm_, intv_features, obs, costs, r_type, t_type,
+                                                predict_log_proba=predict_log_proba, y_name=y_name,
+                                                gamma=gamma, eta=eta, thresh=thresh, lbd=lbd,
+                                                subpopulation_size=subpopulation_size, NGEN=NGEN, POP_SIZE=POP_SIZE,
+                                                rounding_digits=rounding_digits, multi_objective=False,
+                                                return_stats=False)
 
         intervention = indvd_to_intrv(scm, intv_features, winner, obs)
 
