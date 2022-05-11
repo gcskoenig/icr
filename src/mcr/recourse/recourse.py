@@ -108,6 +108,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     if cleanup:
         del creator.FitnessMin
         del creator.Individual
+        evaluator.clear_cache()
+        toolbox.unregister('evaluate')
         del evaluator
 
     return winner, pop, logbook, goal_cost, intv_cost

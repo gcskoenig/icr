@@ -26,6 +26,12 @@ class GreedyEvaluator:
         self.total_count = 0
         self.multi_objective = multi_objective
 
+    def clear_cache(self):
+        logger.debug(self._evaluate.cache_info())
+        logger.debug(self._evaluate_meaningful.cache_info())
+        self._evaluate.cache_clear()
+        self._evaluate_meaningful.cache_clear()
+
     def perc_saved(self):
         return self.memoize_count / self.total_count
 
