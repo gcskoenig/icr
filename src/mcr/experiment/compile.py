@@ -15,8 +15,12 @@ def get_dirs(savepath):
 def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
     base_base_path = savepath
 
+    def check_deprecated(dirname):
+        return 'deprecated' in dirname or 'old' in dirname or 'aborted' in dirname
+
     if dirs is None:
         dirs = get_dirs(savepath)
+        dirs = [dir for dir in dirs if not check_deprecated(dir)]
 
     cols_cost = ['r_type', 't_type', 'iteration', 'intv-cost']
     cols = ['perc_recomm_found', 'gamma', 'eta', 'gamma_obs', 'gamma_obs_pre', 'eta_obs', 'eta_obs_individualized',
