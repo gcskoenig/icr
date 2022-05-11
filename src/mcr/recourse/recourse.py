@@ -117,6 +117,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
         toolbox.unregister('population')
         del evaluator
         if not return_stats:
+            if not multi_objective:
+                hof.clear()
             del pop
             del logbook
 
