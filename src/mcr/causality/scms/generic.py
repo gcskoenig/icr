@@ -18,7 +18,7 @@ class GenericSCM(StructuralCausalModel):
     SMALL_VAR = 0.0001
 
     def __init__(self, dag, fnc_dict=None, fnc_torch_dict=None, noise_dict=None,
-                 u_prefix='u_', sigmoidal=None, costs=None, y_name=None):
+                 u_prefix='u_', sigmoidal=None, costs=None, y_name=None, bound_dict=None):
         super(GenericSCM, self).__init__(dag, u_prefix=u_prefix, costs=costs, y_name=y_name)
 
         if noise_dict is None:
@@ -29,6 +29,8 @@ class GenericSCM(StructuralCausalModel):
             fnc_dict = {}
         if sigmoidal is None:
             sigmoidal = []
+        if bound_dict is None:
+            bound_dict = {}
 
         for node in self.topological_order:
             if node not in fnc_dict:
@@ -37,6 +39,10 @@ class GenericSCM(StructuralCausalModel):
                 fnc_torch_dict[node] = linear_additive_torch
             if node not in noise_dict:
                 noise_dict[node] = dist.Normal(0, 0.1)
+            if node not in bound_dict:
+                bound_dict[node] = (float('-Inf'), float('Inf'))
+                if node in sigmoidal:
+                    bound_dict[node] = (0, 1)
             # if node not in noise_torch_dict:
             #     noise_torch_dict[node] = pyro.distributions.Normal(0, 0.1)
             self.model[node]['sigmoidal'] = node in sigmoidal
@@ -48,6 +54,7 @@ class GenericSCM(StructuralCausalModel):
         self.fnc_dict = fnc_dict
         self.noise_dict = noise_dict
         self.fnc_torch_dict = fnc_torch_dict
+        self.bound_dict = bound_dict
         # self.noise_torch_dict = noise_torch_dict
 
     def save(self, filepath):
@@ -161,7 +168,11 @@ class GenericSCM(StructuralCausalModel):
         obs_df[node] = np.array(0.0)
         x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
         p_y = self.model[node]['fnc'].raw(x_pa)
-        d_y = dist.Bernoulli(p_y)
+        d_y = dist.Bernoulli(p_y.item())
+
+        # then no further calculation needed
+        if p_y == 1.0 or p_y == 0.0:
+            return d_y
 
         def log_prob_joint(y):
             log_probs = []

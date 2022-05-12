@@ -13,6 +13,37 @@ from mcr.recourse.evaluation import GreedyEvaluator, similar
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+def project_within_bounds(proposal, bound):
+    if proposal < bound[0]:
+        return bound[0]
+    elif proposal > bound[1]:
+        return bound[0]
+    else:
+        return proposal
+
+def initrepeat_mixed(individual, bounds):
+    # tuple of the form (2, 5, inf) for binary, categorical, continuous data
+    ind = []
+    for jj in range(len(bounds)):
+        if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
+            ind.append(random.randint(bounds[jj][0], bounds[jj][1]))
+        else:
+            proposal = random.random()
+            proposal = project_within_bounds(proposal, bounds[jj])
+            ind.append(proposal)
+
+    return individual(ind)
+
+def mutate_mixed(individual, indpb, mu, sigma, bounds):
+    for jj in range(len(individual)):
+        if random.random() < indpb:
+            if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
+                individual[jj] = random.randint(bounds[jj][0], bounds[jj][1])
+            else:
+                proposal = tools.mutGaussian([individual[jj]], mu, sigma)[0]
+                individual[jj] = project_within_bounds(proposal)
+    return individual
+
 
 # RECOURSE FUNCTIONS
 
@@ -24,6 +55,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
                                 subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
                                 y_name=y_name, multi_objective=multi_objective)
 
+    bounds = [(scm_.bounds[node][0] - obs[node], scm_.bounds[node][1] - obs[node]) for node in features]
+
     if multi_objective:
         creator.create("FitnessMin", base.Fitness, weights=(lbd, -1.0))
     else:
@@ -33,18 +66,22 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     IND_SIZE = len(features)
 
     toolbox = base.Toolbox()
+    # TODO replace with mixed individual generation
     if binary:
         toolbox.register("intervene", random.randint, 0, 1)
     else:
         toolbox.register("intervene", random.random)
     toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
+    # TODO end
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
+    # TODO replace with mixed mutation
     if binary:
         toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     else:
-        toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.1)
+        toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=MX_PROB)
+    # TODO end
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':
