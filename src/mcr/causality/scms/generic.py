@@ -1,3 +1,5 @@
+import collections
+
 from mcr.causality.scms import StructuralCausalModel
 from mcr.distributions.utils import numpyrodist_to_pyrodist, add_uncertainty
 
@@ -11,6 +13,7 @@ import numpy as np
 import logging
 from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible, BivariateSigmoidal
 from mcr.causality.scms.functions import linear_additive, linear_additive_torch
+import collections
 
 
 class GenericSCM(StructuralCausalModel):
@@ -377,7 +380,10 @@ class GenericSCM(StructuralCausalModel):
         """P(Y=y|X=x_pre)"""
         assert self.model[y_name]['fnc'].binary
         d = self._abduct_node_obs_discrete(y_name, x_pre)
-        p = torch.tensor(d.probs.item())
+        p = d.probs
+        if len(p.shape) > 0:
+            p = p.item()
+        p = torch.tensor(p)
         return torch.log(p)
 
     def predict_log_prob_individualized_obs(self, obs_pre, obs_post, intv_dict, y_name, y=1):
