@@ -123,27 +123,27 @@ def unif_transform(raw_value, observed):
 fn_covid_raw = lambda x: jax.nn.sigmoid(-(-3 + 0.5 * x[..., 0] - x[..., 1] - 20 * x[..., 2] + x[..., 3]**2))
 fn_covid = lambda x, u: jnp.greater_equal(fn_covid_raw(x), u)
 fn_covid_transf = lambda x, x_j: unif_transform(fn_covid_raw(x), x_j)
-fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf)
+fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf, binary=True)
 
 fn_flu_raw = lambda x: jax.nn.sigmoid(-3.5 - 6 * x[..., 0])
 fn_flu = lambda x, u: jnp.greater_equal(fn_flu_raw(x), u)
 fn_flu_transf = lambda x, x_j: unif_transform(fn_flu_raw(x), x_j)
-fn_flu = StructuralFunction(fn_flu, raw=fn_flu_raw, transform=fn_flu_transf)
+fn_flu = StructuralFunction(fn_flu, raw=fn_flu_raw, transform=fn_flu_transf, binary=True)
 
 fn_vomit_raw = lambda x: jax.nn.sigmoid(-4 + 8 * x[..., 0])
 fn_vomit = lambda x, u: jnp.greater_equal(fn_vomit_raw(x), u)
 fn_vomit_transf = lambda x, x_j: unif_transform(fn_vomit_raw(x), x_j)
-fn_vomit = StructuralFunction(fn_vomit, raw=fn_flu_raw, transform=fn_vomit_transf)
+fn_vomit = StructuralFunction(fn_vomit, raw=fn_flu_raw, transform=fn_vomit_transf, binary=True)
 
 fn_fever_raw = lambda x: jax.nn.sigmoid(+ 2 - 8 * x[..., 0] + 8 * x[..., 1])
 fn_fever = lambda x, u: jnp.greater_equal(fn_fever_raw(x), u)
 fn_fever_transf = lambda x, x_j: unif_transform(fn_fever_raw(x), x_j)
-fn_fever = StructuralFunction(fn_fever, raw=fn_fever_raw, transform=fn_fever_transf)
+fn_fever = StructuralFunction(fn_fever, raw=fn_fever_raw, transform=fn_fever_transf, binary=True)
 
 fn_fatigue_raw = lambda x: jax.nn.sigmoid(-4 + x[..., 0]**2 - 2 * x[..., 1] + x[..., 2])
 fn_fatigue = lambda x, u: jnp.greater_equal(fn_fatigue_raw(x), u)
 fn_fatigue_transf = lambda x, x_j: unif_transform(fn_fatigue_raw(x), x_j)
-fn_fatigue = StructuralFunction(fn_fatigue, raw=fn_fatigue_raw, transform=fn_fatigue_transf)
+fn_fatigue = StructuralFunction(fn_fatigue, raw=fn_fatigue_raw, transform=fn_fatigue_transf, binary=True)
 
 SCM_COVID = GenericSCM(
     dag=DirectedAcyclicGraph(
