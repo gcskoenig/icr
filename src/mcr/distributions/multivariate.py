@@ -102,7 +102,6 @@ class BivariateInvertible(dist.Distribution):
 
     def __init__(self, d_j, fncs, xs_pa, y_ixs, validate_args=None):
         """
-        fnc_pre/fnc_post are partial functions that have already been given the parent value as assigment
         """
         self.fnc_pre, self.fnc_post = fncs
         self.x_pa_pre, self.x_pa_post = xs_pa
@@ -158,6 +157,39 @@ class BivariateInvertible(dist.Distribution):
         log_prob2 = d_2.log_prob(jnp.round(u2, decimals=2))
         # TODO make sure that both similar
         return log_prob1 + log_prob2
+
+
+class BivariateSigmoidal(BivariateInvertible):
+
+    def __init__(self, d_j, fncs, xs_pa, y_ixs, validate_args=None):
+        """
+        """
+        super(BivariateSigmoidal, self).__init__(d_j, fncs, xs_pa, y_ixs, validate_args=validate_args)
+
+    def _get_partial_inv(self, ys):
+        raise NotImplementedError('Not available for sigmoidal nodes.')
+
+    def _get_raw_prob(self, ys):
+        x_pa_pre, x_pa_post = self._get_completed_pa(ys)
+        prob_pre_1 = self.fnc_pre.raw(x_pa_pre)
+        prob_post_1 = self.fnc_post.raw(x_pa_post)
+        return prob_pre_1, prob_post_1
+
+    def sample(self, key, sample_shape=(), ys=(1, 1)):
+        assert is_prng_key(key)
+        sample_shape_mod = list(sample_shape)
+        sample_shape_mod[-1] = 1
+        fnc_pre, fnc_post = self._get_partial(ys)
+        u = self.d_j.sample(key, tuple(sample_shape_mod))
+        x1 = fnc_pre(u)
+        x2 = fnc_post(u)
+        sample = jnp.squeeze(jnp.stack([x1, x2], axis=1), axis=-1)
+        return sample
+
+    def log_prob(self, value, ys=(1, 1)):
+        p_1_pre, p_1_post = self._get_raw_prob(ys)
+        d = BivariateBernoulli(p_1_pre, p_1_post)
+        return d.log_prob(value)
 
 
 class TransformedUniform(torch.distributions.Distribution):

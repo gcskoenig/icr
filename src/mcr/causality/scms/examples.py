@@ -171,7 +171,7 @@ SCM_COVID = GenericSCM(
                 },
     fnc_dict={'covid-free': fn_covid, 'flu': fn_flu, 'vomitting': fn_vomit, 'fever': fn_fever,
               'fatigue': fn_fatigue},
-    y_name=['covid-free'],
+    y_name= 'covid-free',
     sigmoidal=['covid-free', 'flu', 'vomitting', 'fever', 'fatigue'],
     costs=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}

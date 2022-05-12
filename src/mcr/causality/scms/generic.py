@@ -9,7 +9,7 @@ import torch
 import jax.random as jrandom
 import numpy as np
 import logging
-from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible
+from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible, BivariateSigmoidal
 from mcr.causality.scms.functions import linear_additive, linear_additive_torch
 
 
@@ -412,7 +412,12 @@ class GenericSCM(StructuralCausalModel):
             y_ix_pre = list(self.model[ch]['parents']).index(y_name)
             y_ix_post = list(scm_post.model[ch]['parents']).index(y_name)
 
-            d_ch = BivariateInvertible(d_u_ch, (fnc_pre, fnc_post), (x_ch_pa_pre, x_ch_pa_post), (y_ix_pre, y_ix_post))
+            if self.model[ch]['fnc'].is_invertible():
+                d_ch = BivariateInvertible(d_u_ch, (fnc_pre, fnc_post), (x_ch_pa_pre, x_ch_pa_post), (y_ix_pre, y_ix_post))
+            elif self.model[ch]['sigmoidal']:
+                d_ch = BivariateSigmoidal(d_u_ch, (fnc_pre, fnc_post), (x_ch_pa_pre, x_ch_pa_post), (y_ix_pre, y_ix_post))
+            else:
+                raise NotImplementedError('only invertible structural equation or sigmoidal supported so far.')
             d_chs[ch] = d_ch
 
             val_chs[ch] = jnp.array([obs_pre[ch], obs_post[ch]])
