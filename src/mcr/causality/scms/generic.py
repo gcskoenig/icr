@@ -115,6 +115,9 @@ class GenericSCM(StructuralCausalModel):
         if fnc.is_invertible():
             u_j = fnc.inv(x_pa, x_j).flatten()
             return dist.Delta(v=u_j)
+        elif fnc.is_transformable():
+            d = fnc.transform(x_pa, x_j)
+            return d
 
         # parent and node were observed
         def model(x_pa, x_j=None):
@@ -135,6 +138,13 @@ class GenericSCM(StructuralCausalModel):
             return dist.Normal(smpl.mean(), smpl.std())
         elif type_dist is dist.Binomial or type_dist is torch.distributions.Binomial:
             return dist.Binomial(probs=smpl.mean())
+        elif type_dist is dist.Gamma or type_dist is torch.distributions.Gamma:
+            raise NotImplementedError('Not implemented')
+            # return dist.Normal(smpl.mean(), smpl.std())
+        elif type_dist is dist.Uniform or type_dist is torch.distributions.Uniform:
+            raise NotImplementedError('Not implemented.')
+        elif type_dist is dist.Categorical or type_dist is torch.distributions.Categorical:
+            return dist.Categorical(probs=np.array(smpl.value_counts()/len(smpl)))
         elif type_dist is dist.MixtureSameFamily:
             logging.debug("Using normal to approximate Mixture")
             return dist.Normal(smpl.mean(), smpl.std())
@@ -162,8 +172,13 @@ class GenericSCM(StructuralCausalModel):
 
                 y_ix = list(self.model[ch]['parents']).index(node)
                 x_ch_pa[..., y_ix] = y
-                u_ch = self.model[ch]['fnc'].inv(x_ch_pa, x_ch)
-                log_probs.append(d_u.log_prob(u_ch))
+                if self.model[node]['sigmoidal']:
+                    p_ch_1 = self.model[node]['fnc'].raw(jnp.array([x_ch_pa]))
+                    p_ch = x_ch * p_ch_1 + (1 - x_ch) * (1 - p_ch_1)
+                    log_probs.append(jnp.log(p_ch))
+                else:
+                    u_ch = self.model[ch]['fnc'].inv(x_ch_pa, x_ch)
+                    log_probs.append(d_u.log_prob(u_ch))
             log_probs.append(d_y.log_prob(y))
             return sum(log_probs)
 
@@ -251,32 +266,40 @@ class GenericSCM(StructuralCausalModel):
         x_pa = obs_df[list(self.model[node]['parents'])].to_numpy()
         x_ch_dict = {}
         x_ch_pa_dict = {}
+        chs_infer = []
         for ch in self.model[node]['children']:
             x_ch_dict[ch] = jnp.array(obs_df[[ch]].to_numpy().flatten())
             x_ch_pa_dict[ch] = jnp.array(obs_df_dummy[list(self.model[ch]['parents'])].to_numpy())
+            if not self.model[ch]['fnc'].is_invertible() and not self.model[ch]['fnc'].is_transformable():
+                chs_infer.append(ch)
+
+        def complete_obs(node, x_pa_dummy, x_pa_val, x_pa_name):
+            ix = list(self.model[node]['parents']).index(x_pa_name)
+            x_pa_mod = x_pa_dummy.at[:, ix].set(x_pa_val)
+            return x_pa_mod
 
         # numpyro model for the inference of the children distributions given the respective states
         def model_binary(x_j_obs, x_ch_dict=None, x_ch_pa_dict=None):
             x_j = numpyro.sample(node, d_node, obs=x_j_obs)
-            for ch in self.model[node]['children']:
+            for ch in chs_infer:
                 u_ch_dist = self.model[ch]['noise_distribution']
                 u_ch = numpyro.sample("{}{}".format(self.u_prefix, ch), u_ch_dist)
                 # insert x_j value into parent array
-                ix = list(self.model[ch]['parents']).index(node)
-                x_ch_pa = x_ch_pa_dict[ch]
-                x_ch_pa_mod = x_ch_pa.at[:, ix].set(x_j)
+                x_ch_pa_mod = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
+                # ix = list(self.model[ch]['parents']).index(node)
+                # x_ch_pa = x_ch_pa_dict[ch]
+                # x_ch_pa_mod = x_ch_pa.at[:, ix].set(x_j)
                 x_ch_input = self.model[ch]['fnc'](x_ch_pa_mod, u_ch)
                 x_ch = numpyro.sample("x_{}".format(ch), dist.Normal(x_ch_input, GenericSCM.SMALL_VAR), obs=x_ch_dict[ch])
 
-
         assert self.model[node]['sigmoidal']
-        input = jnp.mean(x_pa, axis=1).flatten()[0]
-        activation = 1 / (1 + jnp.exp(-input))
+        activation = self.model[node]['fnc'].raw(x_pa).item()
 
 
         x_j = 0
-        mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains,
-                                    model_binary, x_j, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
+        if len(chs_infer) > 0:
+            mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains,
+                                        model_binary, x_j, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
 
         # TODO include latent distribution for discrete variables (in the form of the respective adapted uniform var)
 
@@ -286,27 +309,52 @@ class GenericSCM(StructuralCausalModel):
         unif_0 = dist.Uniform(activation, 1)
         ds_0.append(unif_0)
         for ch in self.model[node]['children']:
-            smpl = mcmc_res.get_samples()[self.u_prefix+ch]
-            if isinstance(self.model[ch]['noise_distribution'], dist.Normal):
-                d = dist.Normal(np.mean(smpl), np.std(smpl))
+            if ch in chs_infer:
+                smpl = mcmc_res.get_samples()[self.u_prefix+ch]
+                if isinstance(self.model[ch]['noise_distribution'], dist.Normal):
+                    d = dist.Normal(np.mean(smpl), np.std(smpl))
+                    ds_0.append(d)
+                else:
+                    raise NotImplementedError('only normal distibrution supported so far')
+            elif self.model[ch]['fnc'].is_invertible():
+                x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
+                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j)
+                d = dist.Delta(u_ch)
                 ds_0.append(d)
             else:
-                raise NotImplementedError('only normal distibrution supported so far')
+                # assuming node is sigmoidal
+                x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
+                d = self.model[ch]['fnc'].transform(x_pa_compl, x_ch_dict[ch])
+                ds_0.append(d)
+
+
 
         x_j = 1
-        mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains,
-                                    model_binary, x_j, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
+        if len(chs_infer):
+            mcmc_res = GenericSCM._mcmc(warmup_steps, nr_samples, nr_chains,
+                                        model_binary, x_j, x_ch_dict=x_ch_dict, x_ch_pa_dict=x_ch_pa_dict)
 
         ds_1 = []
         unif_1 = dist.Uniform(0, activation)
         ds_1.append(unif_1)
         for ch in self.model[node]['children']:
-            smpl = mcmc_res.get_samples()[self.u_prefix+ch]
-            if isinstance(self.model[ch]['noise_distribution'], dist.Normal):
-                d = dist.Normal(np.mean(smpl), np.std(smpl))
+            if ch in chs_infer:
+                smpl = mcmc_res.get_samples()[self.u_prefix+ch]
+                if isinstance(self.model[ch]['noise_distribution'], dist.Normal):
+                    d = dist.Normal(np.mean(smpl), np.std(smpl))
+                    ds_1.append(d)
+                else:
+                    raise NotImplementedError('only normal distibrution supported so far')
+            elif self.model[ch]['fnc'].is_invertible():
+                x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
+                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j)
+                d = dist.Delta(u_ch)
                 ds_1.append(d)
             else:
-                raise NotImplementedError('only normal distibrution supported so far')
+                # assuming node is sigmoidal
+                x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
+                d = self.model[ch]['fnc'].transform(x_pa_compl, x_ch_dict[ch])
+                ds_1.append(d)
 
         mv_d = MultivariateIndependent([ds_0, ds_1])
         mixing_dist = dist.Categorical(probs=np.array([1.0-d_node.probs, d_node.probs]))

@@ -1,3 +1,4 @@
+import jax.random
 import numpyro.distributions as dist
 from numpyro.distributions.util import is_prng_key
 import jax.numpy as jnp
@@ -27,7 +28,8 @@ class MultivariateIndependent(dist.Distribution):
         for ds in self.dss:
             samples = []
             for d in ds:
-                s = d.sample(key, sample_shape)
+                key_d = jax.random.PRNGKey(jax.random.randint(key, (), 0, 2**10))
+                s = d.sample(key_d, sample_shape)
                 samples.append(s)
             samples = jnp.stack(samples, axis=1)
             sampless.append(samples)

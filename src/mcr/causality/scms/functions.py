@@ -4,9 +4,10 @@ import jax.numpy as jnp
 
 class StructuralFunction:
 
-    def __init__(self, fnc, inv=None, additive=False, binary=False, raw=None):
+    def __init__(self, fnc, inv=None, transform=None, additive=False, binary=False, raw=None):
         self.fnc = fnc
         self.inv_fnc = inv
+        self.reverse_transform = transform
         self.additive = additive
         self.binary = binary
         self.raw_fnc = raw
@@ -29,6 +30,12 @@ class StructuralFunction:
             return self.__call__(x_pa, StructuralFunction.get_zero(x_pa), *args, **kwargs)
         else:
             raise NotImplementedError('raw not implemented for non-additive functions')
+
+    def is_transformable(self):
+        return self.reverse_transform is not None
+
+    def transform(self, x_pa, x_j, *args, **kwargs):
+        return self.reverse_transform(x_pa, x_j, *args, **kwargs)
 
     def is_invertible(self):
         return self.inv_fnc is not None or self.additive

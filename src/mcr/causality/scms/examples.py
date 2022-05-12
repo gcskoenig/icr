@@ -1,7 +1,10 @@
+import jax.nn
+
 from mcr.causality.scms import GenericSCM
 from mcr.causality.dags import DirectedAcyclicGraph
 import numpy as np
 import numpyro
+import numpyro.distributions as dist
 from mcr.causality.scms.functions import *
 
 # # EXAMPLE 1 SCM
@@ -109,7 +112,72 @@ SCM_5_VAR_NONLINEAR = GenericSCM(
     y_name='y'
 )
 
+
+# COVID EXAMPLE
+def unif_transform(raw_value, observed):
+    if observed:
+        return numpyro.distributions.Uniform(low=0.0, high=raw_value.item())
+    else:
+        return numpyro.distributions.Uniform(low=raw_value.item(), high=1.0)
+
+fn_covid_raw = lambda x: jax.nn.sigmoid(-(-3 + 0.5 * x[..., 0] - x[..., 1] - 20 * x[..., 2] + x[..., 3]**2))
+fn_covid = lambda x, u: jnp.greater_equal(fn_covid_raw(x), u)
+fn_covid_transf = lambda x, x_j: unif_transform(fn_covid_raw(x), x_j)
+fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf)
+
+fn_flu_raw = lambda x: jax.nn.sigmoid(-3.5 - 6 * x[..., 0])
+fn_flu = lambda x, u: jnp.greater_equal(fn_flu_raw(x), u)
+fn_flu_transf = lambda x, x_j: unif_transform(fn_flu_raw(x), x_j)
+fn_flu = StructuralFunction(fn_flu, raw=fn_flu_raw, transform=fn_flu_transf)
+
+fn_vomit_raw = lambda x: jax.nn.sigmoid(-4 + 8 * x[..., 0])
+fn_vomit = lambda x, u: jnp.greater_equal(fn_vomit_raw(x), u)
+fn_vomit_transf = lambda x, x_j: unif_transform(fn_vomit_raw(x), x_j)
+fn_vomit = StructuralFunction(fn_vomit, raw=fn_flu_raw, transform=fn_vomit_transf)
+
+fn_fever_raw = lambda x: jax.nn.sigmoid(+ 2 - 8 * x[..., 0] + 8 * x[..., 1])
+fn_fever = lambda x, u: jnp.greater_equal(fn_fever_raw(x), u)
+fn_fever_transf = lambda x, x_j: unif_transform(fn_fever_raw(x), x_j)
+fn_fever = StructuralFunction(fn_fever, raw=fn_fever_raw, transform=fn_fever_transf)
+
+fn_fatigue_raw = lambda x: jax.nn.sigmoid(-4 + x[..., 0]**2 - 2 * x[..., 1] + x[..., 2])
+fn_fatigue = lambda x, u: jnp.greater_equal(fn_fatigue_raw(x), u)
+fn_fatigue_transf = lambda x, x_j: unif_transform(fn_fatigue_raw(x), x_j)
+fn_fatigue = StructuralFunction(fn_fatigue, raw=fn_fatigue_raw, transform=fn_fatigue_transf)
+
+SCM_COVID = GenericSCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 0, 0, 0, 1, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 1, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 0, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 0, 0, 1, 1],
+                                   [0, 0, 0, 0, 0, 0, 1, 1, 1],
+                                   [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0, 0]]),
+        var_names=['pop_density', 'flu_shot', 'covid_shots', 'bmi_diff', 'covid-free', 'flu', 'vomitting',
+                   'fever', 'fatigue']
+    ),
+    noise_dict={'pop_density': dist.Gamma(4, rate=4/3),
+                'flu_shot': dist.Bernoulli(probs=0.39),
+                'covid_shots': dist.Categorical(probs=np.array([0.24, 0.02, 0.15, 0.59])),
+                'bmi-diff': dist.Normal(0, 1),
+                'covid-free': unif_dist,
+                'flu': unif_dist,
+                'vomitting': unif_dist,
+                'fever': unif_dist,
+                'fatigue': unif_dist
+                },
+    fnc_dict={'covid-free': fn_covid, 'flu': fn_flu, 'vomitting': fn_vomit, 'fever': fn_fever,
+              'fatigue': fn_fatigue},
+    y_name=['covid-free'],
+    sigmoidal=['covid-free', 'flu', 'vomitting', 'fever', 'fatigue'],
+    costs=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+)
+
 #  OVERVIEW
 
 scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL,
-            '5var-nonlinear': SCM_5_VAR_NONLINEAR}
+            '5var-nonlinear': SCM_5_VAR_NONLINEAR, '8var-covid': SCM_COVID
+            }
