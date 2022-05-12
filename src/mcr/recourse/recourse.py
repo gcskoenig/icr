@@ -21,7 +21,7 @@ def project_within_bounds(proposal, bound):
     else:
         return proposal
 
-def initrepeat_mixed(individual, bounds):
+def initrepeat_mixed(container, bounds):
     # tuple of the form (2, 5, inf) for binary, categorical, continuous data
     ind = []
     for jj in range(len(bounds)):
@@ -32,7 +32,7 @@ def initrepeat_mixed(individual, bounds):
             proposal = project_within_bounds(proposal, bounds[jj])
             ind.append(proposal)
 
-    return individual(ind)
+    return container(ind)
 
 def mutate_mixed(individual, indpb, mu, sigma, bounds):
     for jj in range(len(individual)):
@@ -40,9 +40,9 @@ def mutate_mixed(individual, indpb, mu, sigma, bounds):
             if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
                 individual[jj] = random.randint(bounds[jj][0], bounds[jj][1])
             else:
-                proposal = tools.mutGaussian([individual[jj]], mu, sigma)[0]
-                individual[jj] = project_within_bounds(proposal)
-    return individual
+                proposal = tools.mutGaussian([individual[jj]], mu, sigma, indpb)[0][0]
+                individual[jj] = project_within_bounds(proposal, bounds[jj])
+    return individual,
 
 
 # RECOURSE FUNCTIONS
@@ -55,7 +55,16 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
                                 subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
                                 y_name=y_name, multi_objective=multi_objective)
 
-    bounds = [(scm_.bounds[node][0] - obs[node], scm_.bounds[node][1] - obs[node]) for node in features]
+    bounds = []
+    for node in features:
+        scm_bounds = scm_.bounds[node]
+        tupl = (scm_bounds[0] - obs[node], scm_bounds[1] - obs[node])
+        if isinstance(scm_bounds[0], int) and isinstance(scm_bounds[1], int):
+            tupl = (int(tupl[0]), int(tupl[1]))
+        bounds.append(tupl)
+
+    if y_name is None:
+        y_name = scm_.predict_target
 
     if multi_objective:
         creator.create("FitnessMin", base.Fitness, weights=(lbd, -1.0))
@@ -66,22 +75,20 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     IND_SIZE = len(features)
 
     toolbox = base.Toolbox()
-    # TODO replace with mixed individual generation
-    if binary:
-        toolbox.register("intervene", random.randint, 0, 1)
-    else:
-        toolbox.register("intervene", random.random)
-    toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
-    # TODO end
+    # if binary:
+    #     toolbox.register("intervene", random.randint, 0, 1)
+    # else:
+    #     toolbox.register("intervene", random.random)
+    # toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
+    toolbox.register("individual", initrepeat_mixed, creator.Individual, bounds)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
-    # TODO replace with mixed mutation
-    if binary:
-        toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
-    else:
-        toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=MX_PROB)
-    # TODO end
+    # if binary:
+    #     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
+    # else:
+    #     toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=MX_PROB)
+    toolbox.register("mutate", mutate_mixed, indpb=MX_PROB, mu=0, sigma=1, bounds=bounds)
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':

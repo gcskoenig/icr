@@ -54,7 +54,7 @@ class GenericSCM(StructuralCausalModel):
         self.fnc_dict = fnc_dict
         self.noise_dict = noise_dict
         self.fnc_torch_dict = fnc_torch_dict
-        self.bound_dict = bound_dict
+        self.bounds = bound_dict
         # self.noise_torch_dict = noise_torch_dict
 
     def save(self, filepath):
