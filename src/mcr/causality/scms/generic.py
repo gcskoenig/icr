@@ -381,7 +381,7 @@ class GenericSCM(StructuralCausalModel):
         assert self.model[y_name]['fnc'].binary
         d = self._abduct_node_obs_discrete(y_name, x_pre)
         p = d.probs
-        if len(p.shape) > 0:
+        if (isinstance(p, torch.Tensor) or isinstance(p, jnp.ndarray)) and len(p.shape) > 0:
             p = p.item()
         p = torch.tensor(p)
         return torch.log(p)
