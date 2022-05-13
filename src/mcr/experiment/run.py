@@ -29,6 +29,7 @@ import json
 import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import f1_score
 import numpy as np
 import math
 import os
@@ -185,6 +186,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 kwargs_model['max_depth'] = 30
             if 'n_estimators' not in kwargs_model:
                 kwargs_model['n_estimators'] = 50
+            if 'class_weight' not in kwargs_model:
+                kwargs_model['class_weight'] = 'balanced_subsample'
 
             model = RandomForestClassifier(**kwargs_model)
         else:
@@ -193,13 +196,16 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         logging.info("fitting model with the specified parameters")
         model.fit(batches[0][0], batches[0][1])
         model_score = model.score(batches[1][0], batches[1][1])
+        f1 = f1_score(batches[1][1], model.predict(batches[1][0]))
         logging.info(f"model fit with accuracy {model_score}")
+        logging.info(f"f1-score {f1}")
 
         # refits for multiplicity result
 
         logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
         model_refits_batch0 = []
         model_refits_batch0_scores = []
+        model_refits_batch0_f1s = []
         for ii in range(nr_refits_batch0):
             model_tmp = None
             if model_type == 'logreg':
@@ -213,6 +219,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             model_refits_batch0.append(model_tmp)
             model_tmp_score = model_tmp.score(batches[1][0], batches[1][1])
             model_refits_batch0_scores.append(model_tmp_score)
+            f1_tmp = f1_score(batches[1][1], model_tmp.predict(batches[1][0]))
+            model_refits_batch0_f1s.append(f1_tmp)
             if model_type == 'logreg':
                 print(model_tmp.coef_)
 
@@ -274,6 +282,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
                 model_post.fit(X_train_large, y_train_large)
                 score_post = model_post.score(batches[2][0], batches[2][1])
+                f1_post = f1_score(batches[2][1], model_post.predict(batches[2][0]))
 
                 # perform recourse on batch 1
                 logging.info('Perform recourse on batch 2')
@@ -314,10 +323,13 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 if assess_robustness:
                     stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
                     stats['model_post_score'] = score_post
+                    stats['model_post_f1'] = f1_post
 
                 stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
                 stats['model_score'] = model_score
+                stats['model_f1'] = f1
                 stats['model_refits_batch0_scores'] = model_refits_batch0_scores
+                stats['model_refits_batch0_f1s'] = model_refits_batch0_f1s
 
                 if model_type == 'logreg':
                     stats['model_coef'] = model.coef_.tolist()
