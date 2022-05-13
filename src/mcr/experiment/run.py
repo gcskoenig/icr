@@ -182,7 +182,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             raise NotImplementedError('model type {} not implemented'.format(model_type))
 
         model.fit(batches[0][0], batches[0][1])
-        model_score = model.score(batches[1][0], [1][1])
+        model_score = model.score(batches[1][0], batches[1][1])
 
         # refits for multiplicity result
 
@@ -200,7 +200,7 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
             model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
             model_refits_batch0.append(model_tmp)
-            model_tmp_score = model_tmp.score(batches[1][0], [1][1])
+            model_tmp_score = model_tmp.score(batches[1][0], batches[1][1])
             model_refits_batch0_scores.append(model_tmp_score)
             if model_type == 'logreg':
                 print(model_tmp.coef_)
@@ -324,4 +324,3 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             except Exception as exc:
                 logging.info('Could not append eta_obs_batch2 to stats.json')
                 logging.debug(exc)
-
