@@ -35,6 +35,7 @@ import os
 
 import mcr.causality.scms.examples as ex
 from mcr.recourse import recourse_population, save_recourse_result
+from mcr.experiment.predictors import get_tuning_rf
 
 logging.getLogger().setLevel(20)
 
@@ -161,26 +162,46 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         if model_type == 'logreg':
             model = LogisticRegression(penalty='none', **kwargs_model)
         elif model_type == 'rf':
-            model = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+            rf_random = get_tuning_rf(30, 3)
+
+            # prepare tuning
+            scm_cp = scm.copy()
+            _ = scm_cp.sample_context(10**5)
+            data_tuning = scm_cp.compute()
+            X_tuning = data_tuning[df.columns[df.columns != y_name]]
+            y_tuning = data_tuning[y_name]
+
+            # perform tuning
+            rf_random.fit(X_tuning, y_tuning)
+            rf_best_pars = rf_random.best_params_
+            for par in rf_best_pars.keys():
+                if par not in kwargs_model:
+                    kwargs_model[par] = rf_best_pars[par]
+            model = RandomForestClassifier(**kwargs_model)
         else:
             raise NotImplementedError('model type {} not implemented'.format(model_type))
+
         model.fit(batches[0][0], batches[0][1])
+        model_score = model.score(batches[1][0], [1][1])
 
         # refits for multiplicity result
 
         logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
         model_refits_batch0 = []
+        model_refits_batch0_scores = []
         for ii in range(nr_refits_batch0):
             model_tmp = None
             if model_type == 'logreg':
                 model_tmp = LogisticRegression(penalty='none', **kwargs_model)
             elif model_type == 'rf':
-                model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+                model_tmp = RandomForestClassifier(**kwargs_model)
             else:
                 raise NotImplementedError('model type {} not implemented'.format(model_type))
             sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
             model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
             model_refits_batch0.append(model_tmp)
+            model_tmp_score = model_tmp.score(batches[1][0], [1][1])
+            model_refits_batch0_scores.append(model_tmp_score)
             if model_type == 'logreg':
                 print(model_tmp.coef_)
 
@@ -236,11 +257,12 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 if model_type == 'logreg':
                     model_post = LogisticRegression()
                 elif model_type == 'rf':
-                    model_post = RandomForestClassifier(n_estimators=5)
+                    model_post = RandomForestClassifier(**kwargs_model)
                 else:
                     raise NotImplementedError('model type {} not implemented'.format(model_type))
 
                 model_post.fit(X_train_large, y_train_large)
+                score_post = model_post.score(batches[2][0], batches[2][1])
 
                 # perform recourse on batch 1
                 logging.info('Perform recourse on batch 2')
@@ -282,6 +304,9 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                     stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
 
                 stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
+                stats['model_score'] = model_score
+                stats['model_post_score'] = score_post
+                stats['model_refits_batch0_scores'] = model_refits_batch0_scores
 
                 if model_type == 'logreg':
                     stats['model_coef'] = model.coef_.tolist()
@@ -300,63 +325,3 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 logging.info('Could not append eta_obs_batch2 to stats.json')
                 logging.debug(exc)
 
-
-# if __name__ == '__main__':
-#     # parsing command line arguments
-#     parser = argparse.ArgumentParser("Create recourse experiments. " +
-#                                      "For every configuration a separate folder is created. " +
-#                                      "Within every folder a folder for every interation is created." +
-#                                      "The savepath specifies the folder in which these folders shall be placed.")
-#
-#     parser.add_argument("scm_name", help=f"one of {ex.scm_dict.keys()}", type=str)
-#     parser.add_argument("savepath",
-#                         help="savepath for the experiment folder. either relative to working directory or absolute.",
-#                         type=str)
-#     parser.add_argument("gamma", help="gammas for recourse", type=float)
-#     parser.add_argument("N", help="Number of observations", type=int)
-#     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
-#
-#     parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
-#     parser.add_argument("--seed", help="seed", default=42, type=int)
-#     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
-#                         default="both", type=str)
-#     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
-#     parser.add_argument("--predict_individualized", help="use individualized prediction if available",
-#                         default=True, type=bool)
-#     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
-#
-#     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
-#     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
-#                         default=True, type=bool)
-#
-#     args = parser.parse_args()
-#
-#     # set logging settings
-#     logging.getLogger().setLevel(args.logging_level)
-#
-#     if args.ignore_np_errs:
-#         np.seterr(all="ignore")
-#
-#     savepath_config = None
-#
-#
-#     n_tries = 0
-#     done = False
-#     while n_tries < 5 and not done:
-#         try:
-#             config_id = random.randint(0, 1024)
-#             savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N,
-#                                                                                  config_id)
-#             n_tries += 1
-#             os.mkdir(savepath_config)
-#             done = True
-#         except Exception as err:
-#             logging.warning('Could not generate folder...{}'.format(savepath_config))
-#
-#     run_experiment(args.scm_name, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
-#                    seed=args.seed,
-#                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-#                    predict_individualized=args.predict_individualized,
-#                    model_type=args.model_type)
-#
-#     compile_experiments(args.savepath)
