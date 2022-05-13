@@ -42,7 +42,7 @@ logging.getLogger().setLevel(20)
 def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
-                   NGEN=400, POP_SIZE=1000, rounding_digits=2, **kwargs_model):
+                   NGEN=400, POP_SIZE=1000, rounding_digits=2, tuning=False, **kwargs_model):
     try:
         if not os.path.exists(savepath):
             os.mkdir(savepath)
@@ -162,27 +162,38 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         if model_type == 'logreg':
             model = LogisticRegression(penalty='none', **kwargs_model)
         elif model_type == 'rf':
-            rf_random = get_tuning_rf(30, 3)
+            # parallelize random forest
+            kwargs_model['n_jobs'] = -1
+            if tuning:
+                rf_random = get_tuning_rf(50, 3)
 
-            # prepare tuning
-            scm_cp = scm.copy()
-            _ = scm_cp.sample_context(10**5)
-            data_tuning = scm_cp.compute()
-            X_tuning = data_tuning[df.columns[df.columns != y_name]]
-            y_tuning = data_tuning[y_name]
+                # prepare tuning
+                scm_cp = scm.copy()
+                _ = scm_cp.sample_context(10**4)
+                data_tuning = scm_cp.compute()
+                X_tuning = data_tuning[df.columns[df.columns != y_name]]
+                y_tuning = data_tuning[y_name]
 
-            # perform tuning
-            rf_random.fit(X_tuning, y_tuning)
-            rf_best_pars = rf_random.best_params_
-            for par in rf_best_pars.keys():
-                if par not in kwargs_model:
-                    kwargs_model[par] = rf_best_pars[par]
+                # perform tuning
+                logging.info("tuning random forest parameters")
+                rf_random.fit(X_tuning, y_tuning)
+                rf_best_pars = rf_random.best_params_
+                for par in rf_best_pars.keys():
+                    if par not in kwargs_model:
+                        kwargs_model[par] = rf_best_pars[par]
+            if 'max_depth' not in kwargs_model:
+                kwargs_model['max_depth'] = 30
+            if 'n_estimators' not in kwargs_model:
+                kwargs_model['n_estimators'] = 50
+
             model = RandomForestClassifier(**kwargs_model)
         else:
             raise NotImplementedError('model type {} not implemented'.format(model_type))
 
+        logging.info("fitting model with the specified parameters")
         model.fit(batches[0][0], batches[0][1])
         model_score = model.score(batches[1][0], batches[1][1])
+        logging.info(f"model fit with accuracy {model_score}")
 
         # refits for multiplicity result
 
@@ -302,10 +313,10 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 # add further information to the statistics
                 if assess_robustness:
                     stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+                    stats['model_post_score'] = score_post
 
                 stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
                 stats['model_score'] = model_score
-                stats['model_post_score'] = score_post
                 stats['model_refits_batch0_scores'] = model_refits_batch0_scores
 
                 if model_type == 'logreg':

@@ -332,7 +332,7 @@ class GenericSCM(StructuralCausalModel):
                     raise NotImplementedError('only normal distibrution supported so far')
             elif self.model[ch]['fnc'].is_invertible():
                 x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
-                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j)
+                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j).item()
                 d = dist.Delta(u_ch)
                 ds_0.append(d)
             else:
@@ -361,7 +361,7 @@ class GenericSCM(StructuralCausalModel):
                     raise NotImplementedError('only normal distibrution supported so far')
             elif self.model[ch]['fnc'].is_invertible():
                 x_pa_compl = complete_obs(ch, x_ch_pa_dict[ch], x_j, node)
-                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j)
+                u_ch = self.model[ch]['fnc'].inv(x_pa_compl, x_j).item()
                 d = dist.Delta(u_ch)
                 ds_1.append(d)
             else:

@@ -5,10 +5,10 @@ from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import uniform
 
 def get_tuning_grid_rf(*args, **kwargs):
-    n_estimators = [int(x) for x in np.linspace(start = 10, stop = 2000, num = 10)]
+    n_estimators = [int(x) for x in np.linspace(start = 10, stop = 200, num = 5)]
     max_features = ['auto', 'sqrt']
     max_samples = uniform(0, 1)
-    max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
+    max_depth = [int(x) for x in np.linspace(10, 30, num=5)]
     max_depth.append(None)
     min_samples_split = [2, 5, 10]
     min_samples_leaf = [1, 2, 4]
