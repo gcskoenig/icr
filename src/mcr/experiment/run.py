@@ -40,7 +40,7 @@ from mcr.experiment.predictors import get_tuning_rf
 
 logging.getLogger().setLevel(20)
 
-def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
+def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
                    seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
                    NGEN=400, POP_SIZE=1000, rounding_digits=2, tuning=False, **kwargs_model):
@@ -123,7 +123,9 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             existing_runs = ii + 1
 
     logging.info(f'results for up to {existing_runs} runs found')
-    for ii in range(existing_runs, iterations):
+
+    # for ii in range(existing_runs, iterations):
+    while existing_runs < iterations:
         logging.info('')
         logging.info('')
         logging.info('-------------')
@@ -200,6 +202,16 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
         logging.info(f"model fit with accuracy {model_score}")
         logging.info(f"f1-score {f1}")
 
+        logging.info(f"assessing how many recourse contenders")
+        pred = model.predict(batches[1][1])
+        n_recourse_contendors = np.sum(pred)
+        if n_recourse_contendors < N_recourse:
+            logging.info(f"not enough recourse contendors ({n_recourse_contendors}). try again")
+            continue
+
+        logging.info("enough recourse contendors. continue.")
+        existing_runs += 1
+
         # refits for multiplicity result
 
         logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
@@ -242,7 +254,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
             # perform recourse on batch 1
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
-                                             proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                             N_max=N_recourse, proportion=1.0,
+                                             r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
                                              predict_individualized=predict_individualized,
                                              NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)

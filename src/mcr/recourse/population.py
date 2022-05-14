@@ -11,11 +11,14 @@ from mcr.recourse.recourse import recourse
 from mcr.recourse.utils import compute_h_post_individualized
 
 
-def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10 ** 4, r_type='individualized',
+def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None, nsamples=10 ** 4, r_type='individualized',
                         t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=500,
                         model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000,
                         rounding_digits=2):
     assert not (model is None and not use_scm_pred)
+
+    if N_max is None:
+        N_max = len(y)
 
     # initializing prediction setup
     predict_log_proba = None
@@ -29,6 +32,10 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=0.5, nsamples=10
     predictions = np.exp(predict_log_proba(X)[:, 1]).flatten() >= thresh
     ixs_rejected = np.arange(len(predictions))[predictions == 0]
     ixs_recourse = np.random.choice(ixs_rejected, size=math.floor(proportion * len(ixs_rejected)), replace=False)
+
+    if len(ixs_recourse) > N_max:
+        ixs_recourse = ixs_recourse[:N_max]
+
     logging.debug('Detected {} rejected and {} recourse seeking individuals...'.format(len(ixs_rejected),
                                                                                        len(ixs_recourse)))
 

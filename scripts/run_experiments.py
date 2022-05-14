@@ -39,6 +39,7 @@ if __name__ == "__main__":
 
     parser.add_argument("scm_name", help=f"one of {ex.scm_dict.keys()}", type=str)
     parser.add_argument("N", help="Number of observations", type=int)
+    parser.add_argument("N_recourse", help="Number of individuals for whom recourse shall be computed", type=int)
     parser.add_argument("gamma", help="gammas for recourse", type=float)
     parser.add_argument("lbd", help="lbd weight for meaningfulness objective", type=float)
     parser.add_argument("savepath",
@@ -69,7 +70,7 @@ if __name__ == "__main__":
     if args.ignore_np_errs:
         np.seterr(all="ignore")
 
-    desc = f"N{args.N}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.n_iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
+    desc = f"N{args.N}_Nrec{args.N_recourse}_gam{args.gamma}_t{args.thresh}_lbd{args.lbd}_nit{args.n_iterations}_NGEN{args.NGEN}_POPS{args.POP_SIZE}"
     savepath_config = args.savepath + desc
     print(savepath_config)
 
@@ -92,7 +93,7 @@ if __name__ == "__main__":
         print('savepath_config: {}'.format(savepath_config))
         assert os.path.isdir(savepath_config)
 
-    run_experiment(args.scm_name, args.N, args.gamma, args.thresh, args.lbd, savepath_config,
+    run_experiment(args.scm_name, args.N, args.N_recourse, args.gamma, args.thresh, args.lbd, savepath_config,
                    NGEN=args.NGEN, iterations=args.n_iterations, POP_SIZE=args.POP_SIZE,
                    rounding_digits=args.n_digits,
                    use_scm_pred=False, predict_individualized=args.predict_individualized,
