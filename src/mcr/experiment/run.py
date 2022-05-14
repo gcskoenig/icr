@@ -124,6 +124,8 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
 
     logging.info(f'results for up to {existing_runs} runs found')
 
+    n_fails = 0
+
     # for ii in range(existing_runs, iterations):
     while existing_runs < iterations:
         logging.info('')
@@ -132,8 +134,6 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         logging.info('ITERATION {}'.format(ii))
         logging.info('-------------')
 
-        it_path = savepath + '{}/'.format(ii)
-        os.mkdir(it_path)
 
         # sample data
         noise = scm.sample_context(N)
@@ -203,14 +203,22 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         logging.info(f"f1-score {f1}")
 
         logging.info(f"assessing how many recourse contenders")
-        pred = model.predict(batches[1][1])
+        pred = model.predict(batches[1][0])
         n_recourse_contendors = np.sum(pred)
         if n_recourse_contendors < N_recourse:
             logging.info(f"not enough recourse contendors ({n_recourse_contendors}). try again")
+            n_fails += 1
+            if n_fails >= 30:
+                raise RuntimeError('Could not find enough recourse seeking individuals. ' +
+                                   'Choose larger N or smaller N_recourse.')
             continue
 
         logging.info("enough recourse contendors. continue.")
         existing_runs += 1
+
+        logging.info("create folder to starte results")
+        it_path = savepath + '{}/'.format(ii)
+        os.mkdir(it_path)
 
         # refits for multiplicity result
 
