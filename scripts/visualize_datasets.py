@@ -15,5 +15,7 @@ for scm_name in scm_dict.keys():
     context = scm.sample_context(N)
     data = scm.compute()
 
+    print(data.corr())
+
     sns.pairplot(data, plot_kws={'alpha': 0.2, 'marker': '+'})
     plt.savefig(savepath + scm_name + '_pairplot.pdf')

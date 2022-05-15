@@ -100,11 +100,11 @@ class GreedyEvaluator:
         self.total_count += 1
         individual = [round(el, self.rounding_digits) for el in individual]
         individual = tuple(individual)
-        objective, cost = self._evaluate(eta, thresh, r_type, individual)
+        perc_positive, cost = self._evaluate(eta, thresh, r_type, individual)
         if self.multi_objective or return_split:
-            return float(objective), float(cost),
+            return float(perc_positive), float(cost),
         else:
-            objective = objective > eta
+            objective = perc_positive > eta
             return float(-cost + self._lbd * objective),
 
     def evaluate_meaningful(self, gamma, r_type, individual, return_split=False):
@@ -112,9 +112,9 @@ class GreedyEvaluator:
         self.total_count += 1
         individual = [round(el, self.rounding_digits) for el in individual]
         individual = tuple(individual)
-        objective, cost = self._evaluate_meaningful(gamma, r_type, individual)
+        perc_positive, cost = self._evaluate_meaningful(gamma, r_type, individual)
         if self.multi_objective or return_split:
-            return float(objective), float(cost),
+            return float(perc_positive), float(cost),
         else:
-            objective = objective > gamma
+            objective = perc_positive > gamma
             return float(-cost + self._lbd * objective),

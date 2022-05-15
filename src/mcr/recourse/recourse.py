@@ -21,16 +21,21 @@ def project_within_bounds(proposal, bound):
     else:
         return proposal
 
-def initrepeat_mixed(container, bounds):
+def initrepeat_mixed(container, bounds, X_init=None, obs=None):
     # tuple of the form (2, 5, inf) for binary, categorical, continuous data
     ind = []
     for jj in range(len(bounds)):
-        if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
-            ind.append(random.randint(bounds[jj][0], bounds[jj][1]))
+        if X_init is None or obs is None:
+            if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
+                ind.append(random.randint(bounds[jj][0], bounds[jj][1]))
+            else:
+                proposal = random.random()
+                proposal = project_within_bounds(proposal, bounds[jj])
+                ind.append(proposal)
         else:
-            proposal = random.random()
-            proposal = project_within_bounds(proposal, bounds[jj])
-            ind.append(proposal)
+            proposal_sample = X_init.sample(1)
+            proposal = proposal_sample - obs
+            ind = list(proposal.values[0])
 
     return container(ind)
 
@@ -38,7 +43,12 @@ def mutate_mixed(individual, indpb, mu, sigma, bounds):
     for jj in range(len(individual)):
         if random.random() < indpb:
             if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
-                individual[jj] = random.randint(bounds[jj][0], bounds[jj][1])
+                if individual[jj] == bounds[jj][1]:
+                    individual[jj] -= 1
+                elif individual[jj] == bounds[jj][0]:
+                    individual[jj] += 1
+                else:
+                    individual[jj] = individual[jj] + random.choice([-1, 1])
             else:
                 proposal = tools.mutGaussian([individual[jj]], mu, sigma, indpb)[0][0]
                 individual[jj] = project_within_bounds(proposal, bounds[jj])
@@ -49,7 +59,7 @@ def mutate_mixed(individual, indpb, mu, sigma, bounds):
 
 def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None, y_name=None, cleanup=True, gamma=None,
              eta=None, thresh=None, lbd=1.0, subpopulation_size=500, NGEN=400, CX_PROB=0.3, MX_PROB=0.05,
-             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False, return_stats=False):
+             POP_SIZE=1000, rounding_digits=2, binary=False, multi_objective=False, return_stats=False, X=None):
 
     evaluator = GreedyEvaluator(scm_, obs, costs, features, lbd, rounding_digits=rounding_digits,
                                 subpopulation_size=subpopulation_size, predict_log_proba=predict_log_proba,
@@ -80,7 +90,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     # else:
     #     toolbox.register("intervene", random.random)
     # toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
-    toolbox.register("individual", initrepeat_mixed, creator.Individual, bounds)
+    toolbox.register("individual", initrepeat_mixed, creator.Individual, bounds, X[features], obs[features])
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
@@ -116,15 +126,16 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     pop, logbook = eaMuPlusLambda(pop, toolbox, POP_SIZE, POP_SIZE * 2, CX_PROB, MX_PROB, NGEN,
                                   stats=stats, halloffame=hof, verbose=False)
 
+    invds = np.array(list(hof))
+    perf = np.array([x.values for x in list(hof.keys)])
     if multi_objective:
-        invds = np.array(list(hof))
-        perf = np.array([x.values for x in list(hof.keys)])
-
         min_cost_constrained = np.min(perf[perf[:, 0] > 0.95, 1])
         best_ix = np.where(perf[:, 1] == min_cost_constrained)[0][0]
         winner = invds[best_ix, :]
     else:
-        winner = list(hof)[0]
+        max_perf = np.max(perf)
+        best_ix = np.where(perf == max_perf)[0][0]
+        winner = invds[best_ix, :]
 
     winner = [round(x, ndigits=rounding_digits) for x in winner]
 

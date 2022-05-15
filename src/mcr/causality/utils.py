@@ -22,7 +22,7 @@ def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
             if isinstance(scm, BinomialBinarySCM):
                 dict[var_name] = (obs[var_name] + individual[ii]) % 2
             elif isinstance(scm, GenericSCM):
-                dict[var_name] = individual[ii] - obs[var_name]
+                dict[var_name] = obs[var_name] + individual[ii]
             else:
                 raise NotImplementedError('only BinomialBinary or GenericSCM supported.')
     return dict

@@ -120,7 +120,7 @@ def unif_transform(raw_value, observed):
     else:
         return numpyro.distributions.Uniform(low=raw_value.item(), high=1.0)
 
-fn_covid_raw = lambda x: jax.nn.sigmoid(-(-3 + 0.5 * x[..., 0] - x[..., 1] - 20 * x[..., 2] + x[..., 3]**2))
+fn_covid_raw = lambda x: jax.nn.sigmoid(-(-3 + x[..., 0] - x[..., 1] - 2.5 * x[..., 2] + 0.2 * x[..., 3]**2))
 fn_covid = lambda x, u: jnp.greater_equal(fn_covid_raw(x), u)
 fn_covid_transf = lambda x, x_j: unif_transform(fn_covid_raw(x), x_j)
 fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf, binary=True)
@@ -130,33 +130,32 @@ fn_flu = lambda x, u: jnp.greater_equal(fn_flu_raw(x), u)
 fn_flu_transf = lambda x, x_j: unif_transform(fn_flu_raw(x), x_j)
 fn_flu = StructuralFunction(fn_flu, raw=fn_flu_raw, transform=fn_flu_transf, binary=True)
 
-fn_vomit_raw = lambda x: jax.nn.sigmoid(-4 + 8 * x[..., 0])
-fn_vomit = lambda x, u: jnp.greater_equal(fn_vomit_raw(x), u)
-fn_vomit_transf = lambda x, x_j: unif_transform(fn_vomit_raw(x), x_j)
-fn_vomit = StructuralFunction(fn_vomit, raw=fn_flu_raw, transform=fn_vomit_transf, binary=True)
+fn_appetite_raw = lambda x: jax.nn.sigmoid(- 2 * x[..., 0])
+fn_appetite = lambda x, u: jnp.greater_equal(fn_appetite_raw(x), u)
+fn_appetite_transf = lambda x, x_j: unif_transform(fn_appetite_raw(x), x_j)
+fn_appetite = StructuralFunction(fn_appetite, raw=fn_flu_raw, transform=fn_appetite_transf, binary=True)
 
-fn_fever_raw = lambda x: jax.nn.sigmoid(+ 2 - 8 * x[..., 0] + 8 * x[..., 1])
+fn_fever_raw = lambda x: jax.nn.sigmoid(+ 6 - 9 * x[..., 0])
 fn_fever = lambda x, u: jnp.greater_equal(fn_fever_raw(x), u)
 fn_fever_transf = lambda x, x_j: unif_transform(fn_fever_raw(x), x_j)
 fn_fever = StructuralFunction(fn_fever, raw=fn_fever_raw, transform=fn_fever_transf, binary=True)
 
-fn_fatigue_raw = lambda x: jax.nn.sigmoid(-4 + x[..., 0]**2 - 2 * x[..., 1] + x[..., 2])
+fn_fatigue_raw = lambda x: jax.nn.sigmoid(-1 + x[..., 0]**2 - 2 * x[..., 1])
 fn_fatigue = lambda x, u: jnp.greater_equal(fn_fatigue_raw(x), u)
 fn_fatigue_transf = lambda x, x_j: unif_transform(fn_fatigue_raw(x), x_j)
 fn_fatigue = StructuralFunction(fn_fatigue, raw=fn_fatigue_raw, transform=fn_fatigue_transf, binary=True)
 
 SCM_COVID = GenericSCM(
     dag=DirectedAcyclicGraph(
-        adjacency_matrix=np.array([[0, 0, 0, 0, 1, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 1, 1, 0, 0, 0],
-                                   [0, 0, 0, 0, 1, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 1, 0, 0, 0, 1],
-                                   [0, 0, 0, 0, 0, 0, 0, 1, 1],
-                                   [0, 0, 0, 0, 0, 0, 1, 1, 1],
-                                   [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                   [0, 0, 0, 0, 0, 0, 0, 0, 0]]),
-        var_names=['pop_density', 'flu_shot', 'covid_shots', 'bmi_diff', 'covid-free', 'flu', 'vomitting',
+        adjacency_matrix=np.array([[0, 0, 0, 0, 1, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 0, 0, 0],
+                                   [0, 0, 0, 0, 1, 0, 0, 1],
+                                   [0, 0, 0, 0, 0, 1, 1, 1],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0, 0, 0]]),
+        var_names=['pop_density', 'flu_shot', 'covid_shots', 'bmi_diff', 'covid-free', 'appetite_loss',
                    'fever', 'fatigue']
     ),
     noise_dict={'pop_density': dist.Gamma(4, rate=4/3),
@@ -165,14 +164,14 @@ SCM_COVID = GenericSCM(
                 'bmi-diff': dist.Normal(0, 1),
                 'covid-free': unif_dist,
                 'flu': unif_dist,
-                'vomitting': unif_dist,
+                'appetite_loss': unif_dist,
                 'fever': unif_dist,
                 'fatigue': unif_dist
                 },
-    fnc_dict={'covid-free': fn_covid, 'flu': fn_flu, 'vomitting': fn_vomit, 'fever': fn_fever,
+    fnc_dict={'covid-free': fn_covid, 'flu': fn_flu, 'appetite': fn_appetite, 'fever': fn_fever,
               'fatigue': fn_fatigue},
     y_name= 'covid-free',
-    sigmoidal=['covid-free', 'flu', 'vomitting', 'fever', 'fatigue'],
+    sigmoidal=['covid-free', 'flu', 'appetite', 'fever', 'fatigue'],
     costs=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}
 )
@@ -180,5 +179,5 @@ SCM_COVID = GenericSCM(
 #  OVERVIEW
 
 scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL,
-            '5var-nonlinear': SCM_5_VAR_NONLINEAR, '8var-covid': SCM_COVID
+            '5var-nonlinear': SCM_5_VAR_NONLINEAR, '7var-covid': SCM_COVID
             }
