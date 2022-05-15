@@ -172,7 +172,7 @@ SCM_COVID = GenericSCM(
               'fatigue': fn_fatigue},
     y_name= 'covid-free',
     sigmoidal=['covid-free', 'flu', 'appetite', 'fever', 'fatigue'],
-    costs=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+    costs=np.ones(7),
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}
 )
 
