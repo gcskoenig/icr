@@ -186,7 +186,7 @@ class GenericSCM(StructuralCausalModel):
 
                 y_ix = list(self.model[ch]['parents']).index(node)
                 x_ch_pa[..., y_ix] = y
-                if self.model[node]['sigmoidal']:
+                if self.model[ch]['sigmoidal']:
                     p_ch_1 = self.model[node]['fnc'].raw(jnp.array([x_ch_pa]))
                     p_ch = x_ch * p_ch_1 + (1 - x_ch) * (1 - p_ch_1)
                     log_probs.append(jnp.log(p_ch))
