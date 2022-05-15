@@ -131,7 +131,7 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         logging.info('')
         logging.info('')
         logging.info('-------------')
-        logging.info('ITERATION {}'.format(ii))
+        logging.info('ITERATION {}'.format(existing_runs))
         logging.info('-------------')
 
 
@@ -217,7 +217,7 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         existing_runs += 1
 
         logging.info("create folder to starte results")
-        it_path = savepath + '{}/'.format(ii)
+        it_path = savepath + '{}/'.format(existing_runs)
         os.mkdir(it_path)
 
         # refits for multiplicity result
