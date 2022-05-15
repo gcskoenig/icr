@@ -11,8 +11,8 @@ from mcr.recourse.recourse import recourse
 from mcr.recourse.utils import compute_h_post_individualized
 
 
-def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None, nsamples=10 ** 4, r_type='individualized',
-                        t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=10 ** 4,
+def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None, nsamples=10**4, r_type='individualized',
+                        t_type='acceptance', gamma=0.7, eta=0.7, thresh=0.5, lbd=1.0, subpopulation_size=3*10**3,
                         model=None, use_scm_pred=False, predict_individualized=False, NGEN=400, POP_SIZE=1000,
                         rounding_digits=2):
     assert not (model is None and not use_scm_pred)
