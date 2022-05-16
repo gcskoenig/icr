@@ -163,7 +163,7 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
 
         model = None
         if model_type == 'logreg':
-            model = LogisticRegression(penalty='none', **kwargs_model)
+            model = LogisticRegression(**kwargs_model)
         elif model_type == 'rf':
             # parallelize random forest
             kwargs_model['n_jobs'] = -1
