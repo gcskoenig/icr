@@ -214,11 +214,10 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
             continue
 
         logging.info("enough recourse contendors. continue.")
-        existing_runs += 1
-
         logging.info("create folder to starte results")
         it_path = savepath + '{}/'.format(existing_runs)
         os.mkdir(it_path)
+        existing_runs += 1
 
         # refits for multiplicity result
 
@@ -309,7 +308,9 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
                 logging.info('Perform recourse on batch 2')
 
                 result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
-                                                        proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                                        N_max=N_recourse, proportion=1.0,
+                                                        r_type=r_type, t_type=t_type,
+                                                        gamma=gamma, eta=gamma,
                                                         thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
                                                         predict_individualized=predict_individualized,
                                                         NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)
