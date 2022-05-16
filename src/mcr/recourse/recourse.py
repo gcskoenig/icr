@@ -21,7 +21,7 @@ def project_within_bounds(proposal, bound):
     else:
         return proposal
 
-def initrepeat_mixed(container, bounds, X_init=None, obs=None):
+def initrepeat_mixed(container, bounds, X_init=None, obs=None, n_digits=None):
     # tuple of the form (2, 5, inf) for binary, categorical, continuous data
     ind = []
     for jj in range(len(bounds)):
@@ -37,9 +37,12 @@ def initrepeat_mixed(container, bounds, X_init=None, obs=None):
             proposal = proposal_sample - obs
             ind = list(proposal.values[0])
 
+    if n_digits is not None:
+        ind = [round(x, n_digits) for x in ind]
+
     return container(ind)
 
-def mutate_mixed(individual, indpb, mu, sigma, bounds):
+def mutate_mixed(individual, indpb, mu, sigma, bounds, n_digits):
     for jj in range(len(individual)):
         if random.random() < indpb:
             if isinstance(bounds[jj][0], int) and isinstance(bounds[jj][1], int):
@@ -52,6 +55,11 @@ def mutate_mixed(individual, indpb, mu, sigma, bounds):
             else:
                 proposal = tools.mutGaussian([individual[jj]], mu, sigma, indpb)[0][0]
                 individual[jj] = project_within_bounds(proposal, bounds[jj])
+
+    if n_digits is not None:
+        for ii in range(len(individual)):
+            individual[ii] = round(individual[ii], n_digits)
+
     return individual,
 
 
@@ -90,7 +98,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     # else:
     #     toolbox.register("intervene", random.random)
     # toolbox.register("individual", tools.initRepeat, creator.Individual, toolbox.intervene, n=IND_SIZE)
-    toolbox.register("individual", initrepeat_mixed, creator.Individual, bounds, X[features], obs[features])
+    toolbox.register("individual", initrepeat_mixed, creator.Individual, bounds, X[features],
+                     obs[features], rounding_digits)
     toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
     toolbox.register("mate", tools.cxUniform, indpb=CX_PROB)
@@ -98,7 +107,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     #     toolbox.register("mutate", tools.mutFlipBit, indpb=MX_PROB)
     # else:
     #     toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=MX_PROB)
-    toolbox.register("mutate", mutate_mixed, indpb=MX_PROB, mu=0, sigma=1, bounds=bounds)
+    toolbox.register("mutate", mutate_mixed, indpb=MX_PROB, mu=0, sigma=1, bounds=bounds, n_digits=rounding_digits)
     toolbox.register("select", tools.selNSGA2)
 
     if t_type == 'acceptance':
