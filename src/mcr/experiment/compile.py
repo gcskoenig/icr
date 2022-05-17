@@ -115,7 +115,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                         cost_tmp = pd.read_csv(path_it_config + 'costss.csv', index_col=0)
                         invs_tmp = pd.read_csv(path_it_config + 'invs.csv', index_col=0)
 
-                        ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
+                        ixs_recourse_recommended = invs_tmp.index[(invs_tmp.abs().mean(axis=1) > 0)]
 
                         logging.info(f'# of recourse individuals {len(ixs_recourse)}')
                         logging.info(f'# of recommended ixs {len(ixs_recourse_recommended)}')

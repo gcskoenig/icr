@@ -85,6 +85,7 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
         y_name = scm_.predict_target
 
     if multi_objective:
+        raise NotImplementedError('Not implemented yet.')
         creator.create("FitnessMin", base.Fitness, weights=(lbd, -1.0))
     else:
         creator.create("FitnessMin", base.Fitness, weights=(1.0,))
@@ -138,13 +139,19 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
     invds = np.array(list(hof))
     perf = np.array([x.values for x in list(hof.keys)])
     if multi_objective:
+        # TODO fix. indvs and perf do no thave the same order
+        raise RuntimeError('Your code should not end up here.')
         min_cost_constrained = np.min(perf[perf[:, 0] > 0.95, 1])
         best_ix = np.where(perf[:, 1] == min_cost_constrained)[0][0]
         winner = invds[best_ix, :]
     else:
-        max_perf = np.max(perf)
-        best_ix = np.where(perf == max_perf)[0][0]
-        winner = invds[best_ix, :]
+        winner = invds[0, :]
+        best_perf = 0
+        for ii in np.arange(len(invds)):
+            perf_tmp = toolbox.evaluate(invds[ii, :])[0]
+            if perf_tmp > best_perf:
+                best_perf = perf_tmp
+                winner = invds[ii, :]
 
     winner = [round(x, ndigits=rounding_digits) for x in winner]
 
@@ -187,6 +194,6 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
             del logbook
 
     if return_stats:
-        return winner, pop, logbook, goal_cost, intv_cost
+        return winner, pop, hof, logbook, goal_cost, intv_cost
     else:
         return winner, goal_cost, intv_cost

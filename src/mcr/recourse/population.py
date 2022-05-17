@@ -132,7 +132,7 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None,
 
     logging.debug('Computing stats...')
     stats = {}
-    ixs_rp = interventions[np.abs(interventions.sum(axis=1)) >= 0].index # indexes for which recourse was performed
+    ixs_rp = interventions[np.abs(interventions.abs().sum(axis=1)) > 0].index # indexes for which recourse was performed
     stats['accuracy_pre'] = accuracy_pre
     stats['accuracy_post'] = accuracy_post
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())
