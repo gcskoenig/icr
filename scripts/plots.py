@@ -13,7 +13,7 @@ sns.set_context('talk')
 from mcr.experiment.compile import compile_experiments
 from mcr.causality.scms.examples import scm_dict
 
-scm_names = {'3var-causal': '3var-c-2', '3var-noncausal': '3var-nc-2', '7var-covid': '7var-covid'}
+scm_names = {'3var-causal': '3var-c-3', '3var-noncausal': '3var-nc-3', '7var-covid': '7var-covid-2'}
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
 def has_levels(string):
@@ -82,6 +82,7 @@ g.set_axis_labels(r'gamma or eta', r'improvement/acceptance rate')
 ticks = [0.0, 0.5, 0.75, 0.85, 0.9, 0.95, 1.0]
 xticks = [0.75, 0.85, 0.9, 0.95]
 for ax in g.axes.flat:
+    ax.set_ylim(0, 1)
     ax.set_yscale('function', functions=[lambda x: x**2, lambda z: np.power(z, 1/2)])
     ax.set_xscale('function', functions=[lambda x: x**2, lambda z: np.power(z, 1/2)])
     ax.set_yticks(ticks)
