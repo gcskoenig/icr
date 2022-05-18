@@ -114,8 +114,8 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
                 if not counterfactual_included:
                     all_combinations.append((r_type, t_type))
                     counterfactual_included = True
-                else:
-                    all_combinations.append((r_type, t_type))
+            else:
+                all_combinations.append((r_type, t_type))
 
 
     N_BATCHES = 2
