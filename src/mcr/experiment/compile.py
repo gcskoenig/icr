@@ -1,3 +1,6 @@
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 import pandas as pd
 import json
 import os
@@ -8,7 +11,7 @@ import logging
 logging.getLogger().setLevel(logging.INFO)
 
 def get_dirs(savepath):
-    dirs = [name for name in os.listdir(savepath) if os.path.isdir(os.path.join(savepath, name)) and name[0].isdigit()]
+    dirs = [name for name in os.listdir(savepath) if os.path.isdir(os.path.join(savepath, name)) and name[0] == 'N']
     dirs = [os.path.join(savepath, dir, '') for dir in dirs]
     return dirs
 
@@ -61,7 +64,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
         df_coefs_refits = pd.DataFrame([])
 
         # loop over iterations/experiments to fill the result dataframes
-        it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
+        it_dirs = [int(name) for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)) and name[0].isdigit()]
         for it in it_dirs:
             path_it = path + '{}/'.format(it)
             for r_type in r_types:
@@ -112,7 +115,11 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                         cost_tmp = pd.read_csv(path_it_config + 'costss.csv', index_col=0)
                         invs_tmp = pd.read_csv(path_it_config + 'invs.csv', index_col=0)
 
-                        ixs_recourse_recommended = invs_tmp.index[(invs_tmp.mean(axis=1) > 0)]
+                        ixs_recourse_recommended = invs_tmp.index[(invs_tmp.abs().mean(axis=1) > 0)]
+
+                        logging.info(f'# of recourse individuals {len(ixs_recourse)}')
+                        logging.info(f'# of recommended ixs {len(ixs_recourse_recommended)}')
+
                         cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
                         df_cost = df_cost.append(
                             {'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
@@ -138,6 +145,9 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             # join the dataframes
             df = df.join(df_cost, lsuffix='', rsuffix='_cost')
             df.drop(list(df.filter(regex='_cost$')), axis=1, inplace=True)
+
+            result_dir = base_path
+            df.to_csv(result_dir + 'result_raw.csv')
 
             # get mean and standard deviation
             groupby_cols = ['r_type', 't_type']
@@ -165,8 +175,6 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             #     invs_res = invs_mean
             #     invs_res.columns = invs_res.columns + '_mean'
 
-
-            result_dir = base_path
             result_table.to_csv(result_dir + 'aggregated_result.csv')
             invs_res.to_csv(result_dir + 'aggregated_invs.csv')
             logging.info('SUCCESS in folder {}'.format(dir))
@@ -178,7 +186,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             logging.info('Not successful in directory {}'.format(dir))
             logging.info(err)
 
-    df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mea'])
+    df_resultss = df_resultss.sort_values(['t_type', 'r_type', 'gamma_mean'])
     df_resultss.to_csv(base_base_path + 'resultss.csv')
 
     df_invs_resultss = df_invs_resultss.sort_values(['t_type', 'r_type', 'gamma'])

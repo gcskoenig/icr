@@ -29,19 +29,22 @@ import json
 import logging
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import f1_score
 import numpy as np
 import math
 import os
 
 import mcr.causality.scms.examples as ex
 from mcr.recourse import recourse_population, save_recourse_result
+from mcr.experiment.predictors import get_tuning_rf
 
 logging.getLogger().setLevel(20)
 
-def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
+def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5,
+                   t_types='all',
                    seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
-                   NGEN=400, POP_SIZE=1000, rounding_digits=2, **kwargs_model):
+                   NGEN=400, POP_SIZE=1000, rounding_digits=2, tuning=False, **kwargs_model):
     try:
         if not os.path.exists(savepath):
             os.mkdir(savepath)
@@ -96,17 +99,23 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
     logging.info('Run all types of recourse...')
 
     r_types = ['individualized', 'subpopulation']
-    t_options = ['improvement', 'acceptance']
+    t_options = ['improvement', 'acceptance', 'counterfactual']
 
-    if t_types == 'both':
+    if t_types == 'all':
         t_types = t_options
     elif t_types in t_options:
         t_types = [t_types]
 
     all_combinations = []
+    counterfactual_included = False
     for r_type in r_types:
         for t_type in t_types:
-            all_combinations.append((r_type, t_type))
+            if t_type == 'counterfactual':
+                if not counterfactual_included:
+                    all_combinations.append((r_type, t_type))
+                    counterfactual_included = True
+            else:
+                all_combinations.append((r_type, t_type))
 
 
     N_BATCHES = 2
@@ -121,15 +130,17 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             existing_runs = ii + 1
 
     logging.info(f'results for up to {existing_runs} runs found')
-    for ii in range(existing_runs, iterations):
+
+    n_fails = 0
+
+    # for ii in range(existing_runs, iterations):
+    while existing_runs < iterations:
         logging.info('')
         logging.info('')
         logging.info('-------------')
-        logging.info('ITERATION {}'.format(ii))
+        logging.info('ITERATION {}'.format(existing_runs))
         logging.info('-------------')
 
-        it_path = savepath + '{}/'.format(ii)
-        os.mkdir(it_path)
 
         # sample data
         noise = scm.sample_context(N)
@@ -159,28 +170,83 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
         model = None
         if model_type == 'logreg':
-            model = LogisticRegression(penalty='none', **kwargs_model)
+            model = LogisticRegression(**kwargs_model)
         elif model_type == 'rf':
-            model = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+            # parallelize random forest
+            kwargs_model['n_jobs'] = -1
+            if tuning:
+                rf_random = get_tuning_rf(50, 3)
+
+                # prepare tuning
+                scm_cp = scm.copy()
+                _ = scm_cp.sample_context(10**4)
+                data_tuning = scm_cp.compute()
+                X_tuning = data_tuning[df.columns[df.columns != y_name]]
+                y_tuning = data_tuning[y_name]
+
+                # perform tuning
+                logging.info("tuning random forest parameters")
+                rf_random.fit(X_tuning, y_tuning)
+                rf_best_pars = rf_random.best_params_
+                for par in rf_best_pars.keys():
+                    if par not in kwargs_model:
+                        kwargs_model[par] = rf_best_pars[par]
+            if 'max_depth' not in kwargs_model:
+                kwargs_model['max_depth'] = 30
+            if 'n_estimators' not in kwargs_model:
+                kwargs_model['n_estimators'] = 50
+            if 'class_weight' not in kwargs_model:
+                kwargs_model['class_weight'] = 'balanced_subsample'
+
+            model = RandomForestClassifier(**kwargs_model)
         else:
             raise NotImplementedError('model type {} not implemented'.format(model_type))
+
+        logging.info("fitting model with the specified parameters")
         model.fit(batches[0][0], batches[0][1])
+        model_score = model.score(batches[1][0], batches[1][1])
+        f1 = f1_score(batches[1][1], model.predict(batches[1][0]))
+        logging.info(f"model fit with accuracy {model_score}")
+        logging.info(f"f1-score {f1}")
+
+        logging.info(f"assessing how many recourse contenders")
+        pred = model.predict(batches[1][0])
+        n_recourse_contendors = np.sum(pred)
+        if n_recourse_contendors < N_recourse:
+            logging.info(f"not enough recourse contendors ({n_recourse_contendors}). try again")
+            n_fails += 1
+            if n_fails >= 30:
+                raise RuntimeError('Could not find enough recourse seeking individuals. ' +
+                                   'Choose larger N or smaller N_recourse.')
+            continue
+
+        logging.info("enough recourse contendors. continue.")
+        logging.info("create folder to starte results")
+        it_path = savepath + '{}/'.format(existing_runs)
+        os.mkdir(it_path)
+        existing_runs += 1
 
         # refits for multiplicity result
 
         logging.info('Fitting {} models for multiplicity robustness assessment.'.format(nr_refits_batch0))
         model_refits_batch0 = []
+        model_refits_batch0_scores = []
+        model_refits_batch0_f1s = []
         for ii in range(nr_refits_batch0):
             model_tmp = None
             if model_type == 'logreg':
                 model_tmp = LogisticRegression(penalty='none', **kwargs_model)
             elif model_type == 'rf':
-                model_tmp = RandomForestClassifier(n_estimators=1, max_depth=2, **kwargs_model)
+                model_tmp = RandomForestClassifier(**kwargs_model)
             else:
                 raise NotImplementedError('model type {} not implemented'.format(model_type))
             sample_locs = batches[0][0].sample(batches[0][0].shape[0], replace=True).index
             model_tmp.fit(batches[0][0].loc[sample_locs, :], batches[0][1].loc[sample_locs])
             model_refits_batch0.append(model_tmp)
+            model_tmp_score = model_tmp.score(batches[1][0], batches[1][1])
+            model_refits_batch0_scores.append(model_tmp_score)
+            f1_tmp = f1_score(batches[1][1], model_tmp.predict(batches[1][0]))
+            model_refits_batch0_f1s.append(f1_tmp)
             if model_type == 'logreg':
                 print(model_tmp.coef_)
 
@@ -202,7 +268,8 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
 
             # perform recourse on batch 1
             result_tpl = recourse_population(scm, batches[1][0], batches[1][1], batches[1][2], y_name, costs,
-                                             proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                             N_max=N_recourse, proportion=1.0,
+                                             r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
                                              thresh=thresh, lbd=lbd, model=model,  use_scm_pred=use_scm_pred,
                                              predict_individualized=predict_individualized,
                                              NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)
@@ -236,17 +303,21 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 if model_type == 'logreg':
                     model_post = LogisticRegression()
                 elif model_type == 'rf':
-                    model_post = RandomForestClassifier(n_estimators=5)
+                    model_post = RandomForestClassifier(**kwargs_model)
                 else:
                     raise NotImplementedError('model type {} not implemented'.format(model_type))
 
                 model_post.fit(X_train_large, y_train_large)
+                score_post = model_post.score(batches[2][0], batches[2][1])
+                f1_post = f1_score(batches[2][1], model_post.predict(batches[2][0]))
 
                 # perform recourse on batch 1
                 logging.info('Perform recourse on batch 2')
 
                 result_tpl_batch2 = recourse_population(scm, batches[2][0], batches[2][1], batches[2][2], y_name, costs,
-                                                        proportion=1.0, r_type=r_type, t_type=t_type, gamma=gamma, eta=gamma,
+                                                        N_max=N_recourse, proportion=1.0,
+                                                        r_type=r_type, t_type=t_type,
+                                                        gamma=gamma, eta=gamma,
                                                         thresh=thresh, lbd=lbd, model=model, use_scm_pred=use_scm_pred,
                                                         predict_individualized=predict_individualized,
                                                         NGEN=NGEN, POP_SIZE=POP_SIZE, rounding_digits=rounding_digits)
@@ -280,8 +351,14 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
                 # add further information to the statistics
                 if assess_robustness:
                     stats['eta_obs_refit'] = float(eta_obs_batch2)  # eta refit on batch0_pre and bacht1_post
+                    stats['model_post_score'] = score_post
+                    stats['model_post_f1'] = f1_post
 
                 stats['eta_obs_refits_batch0_mean'] = float(np.mean(eta_obs_refits_batch0)) # mean eta of batch0-refits
+                stats['model_score'] = model_score
+                stats['model_f1'] = f1
+                stats['model_refits_batch0_scores'] = model_refits_batch0_scores
+                stats['model_refits_batch0_f1s'] = model_refits_batch0_f1s
 
                 if model_type == 'logreg':
                     stats['model_coef'] = model.coef_.tolist()
@@ -299,64 +376,3 @@ def run_experiment(scm_name, N, gamma, thresh, lbd, savepath, use_scm_pred=False
             except Exception as exc:
                 logging.info('Could not append eta_obs_batch2 to stats.json')
                 logging.debug(exc)
-
-
-# if __name__ == '__main__':
-#     # parsing command line arguments
-#     parser = argparse.ArgumentParser("Create recourse experiments. " +
-#                                      "For every configuration a separate folder is created. " +
-#                                      "Within every folder a folder for every interation is created." +
-#                                      "The savepath specifies the folder in which these folders shall be placed.")
-#
-#     parser.add_argument("scm_name", help=f"one of {ex.scm_dict.keys()}", type=str)
-#     parser.add_argument("savepath",
-#                         help="savepath for the experiment folder. either relative to working directory or absolute.",
-#                         type=str)
-#     parser.add_argument("gamma", help="gammas for recourse", type=float)
-#     parser.add_argument("N", help="Number of observations", type=int)
-#     parser.add_argument("n_iterations", help="number of runs per configuration", type=int)
-#
-#     parser.add_argument("--thresh", help="threshs for prediction and recourse", type=float, default=0.5)
-#     parser.add_argument("--seed", help="seed", default=42, type=int)
-#     parser.add_argument("--t_type", help="target types, either one of improvement and acceptance or both",
-#                         default="both", type=str)
-#     parser.add_argument("--scm_type", help="type of scm, either binomial or sigmoid", default='binomial', type=str)
-#     parser.add_argument("--predict_individualized", help="use individualized prediction if available",
-#                         default=True, type=bool)
-#     parser.add_argument("--model_type", help="model class", default='logreg', type=str)
-#
-#     parser.add_argument("--logging_level", help="logging-level", default=20, type=int)
-#     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
-#                         default=True, type=bool)
-#
-#     args = parser.parse_args()
-#
-#     # set logging settings
-#     logging.getLogger().setLevel(args.logging_level)
-#
-#     if args.ignore_np_errs:
-#         np.seterr(all="ignore")
-#
-#     savepath_config = None
-#
-#
-#     n_tries = 0
-#     done = False
-#     while n_tries < 5 and not done:
-#         try:
-#             config_id = random.randint(0, 1024)
-#             savepath_config = args.savepath + 'gamma_{}_M_{}_N_{}_id_{}/'.format(args.gamma, args.N_nodes, args.N,
-#                                                                                  config_id)
-#             n_tries += 1
-#             os.mkdir(savepath_config)
-#             done = True
-#         except Exception as err:
-#             logging.warning('Could not generate folder...{}'.format(savepath_config))
-#
-#     run_experiment(args.scm_name, args.N, args.lbd, args.gamma, args.thresh, savepath_config,
-#                    seed=args.seed,
-#                    iterations=args.n_iterations, use_scm_pred=False, t_types=args.t_type,
-#                    predict_individualized=args.predict_individualized,
-#                    model_type=args.model_type)
-#
-#     compile_experiments(args.savepath)
