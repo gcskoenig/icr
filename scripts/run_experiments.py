@@ -56,6 +56,7 @@ if __name__ == "__main__":
     parser.add_argument("--assess_robustness", type=bool, default=False)
     parser.add_argument("--nr_refits", type=int, default=5)
     parser.add_argument("--model_type", type=str, default='logreg')
+    parser.add_argument("--t_type", type=str, default='all')
     parser.add_argument("--id", type=int, default=None)
 
     parser.add_argument("--ignore_np_errs", help="whether to ignore all numpy warnings and errors",
@@ -98,6 +99,7 @@ if __name__ == "__main__":
                    rounding_digits=args.n_digits,
                    use_scm_pred=False, predict_individualized=args.predict_individualized,
                    assess_robustness=args.assess_robustness,
-                   nr_refits_batch0=args.nr_refits, model_type=args.model_type)
+                   nr_refits_batch0=args.nr_refits, model_type=args.model_type,
+                   t_types=args.t_type)
 
     compile_experiments(args.savepath, args.scm_name)

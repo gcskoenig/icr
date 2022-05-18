@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 import logging
 import functools
@@ -34,6 +35,21 @@ class GreedyEvaluator:
 
     def perc_saved(self):
         return self.memoize_count / self.total_count
+
+    @functools.cache
+    def _evaluate_ci(self, thresh, individual):
+        self.memoize_count -= 1
+        intv_dict = indvd_to_intrv(self._scm, self._features, individual, self._obs)
+        obs_new = self._obs.copy()
+        for var in intv_dict.keys():
+            obs_new[var] = intv_dict[var]
+        df = pd.DataFrame([obs_new])
+        pred = self._predict_log_proba(df)[:, 1]
+        expected_above_thresh = np.mean(np.exp(pred) >= thresh)
+
+        ind = np.abs(np.array(individual))
+        cost = np.dot(ind, self._costs)
+        return expected_above_thresh, cost
 
     @functools.cache
     def _evaluate(self, eta, thresh, r_type, individual):
@@ -94,6 +110,17 @@ class GreedyEvaluator:
         ind = np.abs(np.array(individual))
         cost = np.dot(ind, self._costs)
         return perc_positive, cost
+
+    def evaluate_ci(self, thresh, individual, return_split=False):
+        self.memoize_count += 1
+        self.total_count += 1
+        individual = [round(el, self.rounding_digits) for el in individual]
+        individual = tuple(individual)
+        objective, cost = self._evaluate_ci(thresh, individual)
+        if self.multi_objective or return_split:
+            return float(objective), float(cost),
+        else:
+            return float(-cost + self._lbd * objective),
 
     def evaluate(self, eta, thresh, r_type, individual, return_split=False):
         self.memoize_count += 1
