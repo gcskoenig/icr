@@ -40,7 +40,8 @@ from mcr.experiment.predictors import get_tuning_rf
 
 logging.getLogger().setLevel(20)
 
-def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5, t_types='both',
+def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5,
+                   t_types='all',
                    seed=42, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
                    NGEN=400, POP_SIZE=1000, rounding_digits=2, tuning=False, **kwargs_model):
@@ -98,17 +99,23 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
     logging.info('Run all types of recourse...')
 
     r_types = ['individualized', 'subpopulation']
-    t_options = ['improvement', 'acceptance']
+    t_options = ['improvement', 'acceptance', 'counterfactual']
 
-    if t_types == 'both':
+    if t_types == 'all':
         t_types = t_options
     elif t_types in t_options:
         t_types = [t_types]
 
     all_combinations = []
+    counterfactual_included = False
     for r_type in r_types:
         for t_type in t_types:
-            all_combinations.append((r_type, t_type))
+            if t_type == 'counterfactual':
+                if not counterfactual_included:
+                    all_combinations.append((r_type, t_type))
+                    counterfactual_included = True
+            else:
+                all_combinations.append((r_type, t_type))
 
 
     N_BATCHES = 2

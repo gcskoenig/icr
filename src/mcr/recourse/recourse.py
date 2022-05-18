@@ -119,6 +119,9 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
         assert not y_name is None
         assert not gamma is None
         toolbox.register("evaluate", evaluator.evaluate_meaningful, gamma, r_type)
+    elif t_type == 'counterfactual':
+        assert not predict_log_proba is None
+        toolbox.register("evaluate", evaluator.evaluate_ci, thresh)
     else:
         raise NotImplementedError('only t_types acceptance or improvement are available')
 
@@ -160,6 +163,8 @@ def recourse(scm_, features, obs, costs, r_type, t_type, predict_log_proba=None,
             goal_cost, intv_cost = evaluator.evaluate(eta, thresh, r_type, winner, return_split=True)
         elif t_type == 'improvement':
             goal_cost, intv_cost = evaluator.evaluate_meaningful(gamma, r_type, winner, return_split=True)
+        elif t_type == 'counterfactual':
+            goal_cost, intv_cost = evaluator.evaluate_ci(thresh, winner, return_split=True)
         return goal_cost, intv_cost
 
     goal_cost, intv_cost = eval_cost(winner)
