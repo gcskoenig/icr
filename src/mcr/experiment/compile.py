@@ -54,7 +54,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
 
 
         r_types = ['individualized', 'subpopulation']
-        t_types = ['improvement', 'acceptance']
+        t_types = ['improvement', 'acceptance', 'counterfactual']
 
         # RESULT DATAFRAMES
         df = pd.DataFrame([], columns=cols)
