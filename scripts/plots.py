@@ -15,7 +15,8 @@ rc('font',**{'family':'serif','serif':['Bookman']})
 from mcr.experiment.compile import compile_experiments
 from mcr.causality.scms.examples import scm_dict
 
-scm_names = {'3var-causal': '3var-c-3', '3var-noncausal': '3var-nc-3', '7var-covid': '7var-covid-2'}
+scm_names = {'3var-causal': '3var-c-4', '3var-noncausal': '3var-nc-4',
+             '5var-skill': '5var-skill-2', '7var-covid': '7var-covid-2'}
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
 def has_levels(string):
@@ -102,8 +103,8 @@ with sns.plotting_context('talk'):
 
     g2 = sns.relplot(data=df_plt, x="confidence", y="value", col='metric', style='type',
                      hue='scm', kind='line', markers=True, dashes=False, err_kws={'alpha': 0.1},
-                     col_wrap=6, palette=sns.color_palette("tab10", 3), height=4, aspect=0.6,
-                     legend=False, alpha=0.7,
+                     col_wrap=6, palette=sns.color_palette("tab10", 4), height=4, aspect=0.6,
+                     legend=True, alpha=0.7,
                      facet_kws={'sharex': False, 'sharey': False})
     g2.set_titles('{col_name}')
     g2.set_axis_labels(r'confidence', r'')

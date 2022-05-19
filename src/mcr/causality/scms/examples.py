@@ -225,7 +225,7 @@ SCM_PROGRAMMING = GenericSCM(
               'fatigue': fn_fatigue},
     y_name= 'senior-level_skill',
     sigmoidal=['senior-level_skill'],
-    costs=np.ones(5),
+    costs=[1.0, 1.0, 0.01, 0.1, 0.1],
     bound_dict={'years_experience': (0, sys.maxsize), 'degree': (0, 3),
                 'nr_commits': (0, sys.maxsize),
                 'nr_languages': (0, sys.maxsize),
