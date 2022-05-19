@@ -6,6 +6,7 @@ import numpy as np
 import numpyro
 import numpyro.distributions as dist
 from mcr.causality.scms.functions import *
+import sys
 
 # # EXAMPLE 1 SCM
 #
@@ -176,8 +177,67 @@ SCM_COVID = GenericSCM(
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}
 )
 
+#
+
+# COVID EXAMPLE
+
+fn_skilled_raw = lambda x: jax.nn.sigmoid((-10 + 3*x[..., 0] + 4*x[..., 1]))
+fn_skilled = lambda x, u: jnp.greater_equal(fn_skilled_raw(x), u)
+fn_skilled_transf = lambda x, x_j: unif_transform(fn_skilled_raw(x), x_j)
+fn_skilled = StructuralFunction(fn_skilled, raw=fn_skilled_raw,
+                                transform=fn_skilled_transf, binary=True)
+
+fn_nr_commits_raw = lambda x: 10 * x[..., 0] * (1 + 100 * x[..., 1])
+fn_nr_commits = lambda x, u: fn_nr_commits_raw(x) + u
+fn_nr_commits = StructuralFunction(fn_nr_commits, raw=fn_nr_commits_raw,
+                                   additive=True)
+
+fn_nr_languages_raw = lambda x: jax.nn.sigmoid(10 * x[..., 0])
+fn_nr_languages = lambda x, u: fn_nr_languages_raw(x) + u
+fn_nr_languages = StructuralFunction(fn_nr_languages, raw=fn_nr_languages_raw,
+                                     additive=True)
+
+fn_nr_stars_raw = lambda x: 10 * x[..., 0]
+fn_nr_stars = lambda x, u: fn_nr_stars_raw(x) + u
+fn_nr_stars = StructuralFunction(fn_nr_stars, raw=fn_nr_stars_raw,
+                                 additive=True)
+
+
+
+SCM_PROGRAMMING = GenericSCM(
+    dag=DirectedAcyclicGraph(
+        adjacency_matrix=np.array([[0, 0, 1, 1, 0, 0],
+                                   [0, 0, 1, 0, 0, 0],
+                                   [0, 0, 0, 1, 1, 1],
+                                   [0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0],
+                                   [0, 0, 0, 0, 0, 0]]),
+        var_names=['years_experience', 'degree', 'senior-level_skill', 'nr_commits', 'nr_languages', 'nr_stars']
+    ),
+    noise_dict={'years_experience': dist.GammaPoisson(8, rate=8/3),
+                'degree': dist.Categorical(probs=np.array([0.4, 0.2, 0.3, 0.1])),
+                'senior-level_skill': unif_dist,
+                'nr_commits': dist.GammaPoisson(40, rate=40/4),
+                'nr_languages': dist.GammaPoisson(2, rate=2/4),
+                'nr_stars': dist.GammaPoisson(5, rate=5/4)
+                },
+    fnc_dict={'senior-level_skill': fn_skilled, 'nr_commits': fn_nr_commits, 'nr_stars': fn_nr_stars, 'fever': fn_fever,
+              'fatigue': fn_fatigue},
+    y_name= 'senior-level_skill',
+    sigmoidal=['senior-level_skill'],
+    costs=np.ones(5),
+    bound_dict={'years_experience': (0, sys.maxsize), 'degree': (0, 3),
+                'nr_commits': (0, sys.maxsize),
+                'nr_languages': (0, sys.maxsize),
+                'nr_stars': (0, sys.maxsize)}
+)
+
+
+
+
 #  OVERVIEW
 
 scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL,
-            '5var-nonlinear': SCM_5_VAR_NONLINEAR, '7var-covid': SCM_COVID
+            '5var-nonlinear': SCM_5_VAR_NONLINEAR, '7var-covid': SCM_COVID,
+            '5var-skill': SCM_PROGRAMMING
             }
