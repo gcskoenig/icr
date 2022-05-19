@@ -16,7 +16,7 @@ from mcr.experiment.compile import compile_experiments
 from mcr.causality.scms.examples import scm_dict
 
 scm_names = {'3var-causal': '3var-c-4', '3var-noncausal': '3var-nc-4',
-             '5var-skill': '5var-skill-2', '7var-covid': '7var-covid-2'}
+             '5var-skill': '5var-skill-3', '7var-covid': '7var-covid-2'}
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
 def has_levels(string):
@@ -52,7 +52,7 @@ dfss.loc[dfss['t_type'] == 'counterfactual', 't_type'] = 'CE'
 
 # create dataset of interest with columns rtype ttype value value-type confidence
 
-value_types = ['gamma_obs', 'eta_obs', 'eta_obs_refits_batch0_mean', 'intv-cost']
+value_types = ['gamma_obs', 'eta_obs']#, 'eta_obs_refits_batch0_mean', 'intv-cost']
 value_names = {value_types[0]: r'$\gamma^{obs, model}$', value_types[1]: r'$\eta^{obs, model}$',
                value_types[2]: r'$\eta^{obs,refit}$', value_types[3]: r'\text{cost}'}
 info_columns = ['scm', 't_type', 'r_type']
