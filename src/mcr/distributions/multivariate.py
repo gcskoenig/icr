@@ -152,6 +152,8 @@ class BivariateInvertible(dist.Distribution):
         u2 = fnc_post_inv(value[..., 1])
 
         log_prob1 = self.d_j.log_prob(u1)
+        if not self.d_j.support(u1):
+            log_prob1 = jnp.array([-jnp.inf])
         u1_r = jnp.round(u1, decimals=2)
         d_2 = dist.Delta(u1_r)
         log_prob2 = d_2.log_prob(jnp.round(u2, decimals=2))
