@@ -228,8 +228,6 @@ SCM_PROGRAMMING = GenericSCM(
 )
 
 
-
-
 #  OVERVIEW
 
 scm_dict = {'3var-noncausal': SCM_3_VAR_NONCAUSAL, '3var-causal': SCM_3_VAR_CAUSAL,

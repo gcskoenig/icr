@@ -112,7 +112,7 @@ ylim = [-0.1, 1.1]
 
 metric_sets = {'improvement': ['gamma_obs'],
                'acceptance': ['eta_obs', 'eta_obs_refits_batch0_mean', 'eta_obs_individualized']}
-ncol = 3
+ncol = 6
 tickright = False
 
 for name in metric_sets.keys():
@@ -122,8 +122,8 @@ for name in metric_sets.keys():
 
         legend = True
         if name == 'acceptance':
-            # legend = False
-            legend = True
+            legend = False
+            #legend = True
 
 
         g2 = sns.relplot(data=df_plt, x="confidence", y="value", col='metric', style='type',
