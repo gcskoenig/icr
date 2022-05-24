@@ -102,6 +102,8 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None,
     costss = pd.DataFrame(costss, columns=['goal_cost', 'intv_cost'])
     costss.index = interventions.index.copy()
 
+    ixs_rp = interventions[np.abs(interventions.abs().sum(axis=1)) > 0].index  # indexes where recourse was performed
+
     X_pre = X.iloc[ixs_recourse, :]
     y_pre = y.iloc[ixs_recourse]
     X_post = X_new.iloc[ixs_recourse, :]
@@ -132,7 +134,6 @@ def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None,
 
     logging.debug('Computing stats...')
     stats = {}
-    ixs_rp = interventions[np.abs(interventions.abs().sum(axis=1)) > 0].index  # indexes where recourse was performed
     stats['accuracy_pre'] = accuracy_pre
     stats['accuracy_post'] = accuracy_post
     stats['recourse_seeking_ixs'] = list(interventions.index.copy())

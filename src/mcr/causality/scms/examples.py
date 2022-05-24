@@ -126,15 +126,10 @@ fn_covid = lambda x, u: jnp.greater_equal(fn_covid_raw(x), u)
 fn_covid_transf = lambda x, x_j: unif_transform(fn_covid_raw(x), x_j)
 fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf, binary=True)
 
-fn_flu_raw = lambda x: jax.nn.sigmoid(-3.5 - 6 * x[..., 0])
-fn_flu = lambda x, u: jnp.greater_equal(fn_flu_raw(x), u)
-fn_flu_transf = lambda x, x_j: unif_transform(fn_flu_raw(x), x_j)
-fn_flu = StructuralFunction(fn_flu, raw=fn_flu_raw, transform=fn_flu_transf, binary=True)
-
 fn_appetite_raw = lambda x: jax.nn.sigmoid(- 2 * x[..., 0])
 fn_appetite = lambda x, u: jnp.greater_equal(fn_appetite_raw(x), u)
 fn_appetite_transf = lambda x, x_j: unif_transform(fn_appetite_raw(x), x_j)
-fn_appetite = StructuralFunction(fn_appetite, raw=fn_flu_raw, transform=fn_appetite_transf, binary=True)
+fn_appetite = StructuralFunction(fn_appetite, raw=fn_appetite_raw, transform=fn_appetite_transf, binary=True)
 
 fn_fever_raw = lambda x: jax.nn.sigmoid(+ 6 - 9 * x[..., 0])
 fn_fever = lambda x, u: jnp.greater_equal(fn_fever_raw(x), u)
@@ -169,10 +164,10 @@ SCM_COVID = GenericSCM(
                 'fever': unif_dist,
                 'fatigue': unif_dist
                 },
-    fnc_dict={'covid-free': fn_covid, 'flu': fn_flu, 'appetite': fn_appetite, 'fever': fn_fever,
+    fnc_dict={'covid-free': fn_covid, 'appetite': fn_appetite, 'fever': fn_fever,
               'fatigue': fn_fatigue},
     y_name= 'covid-free',
-    sigmoidal=['covid-free', 'flu', 'appetite', 'fever', 'fatigue'],
+    sigmoidal=['covid-free', 'appetite', 'fever', 'fatigue'],
     costs=np.ones(7),
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}
 )
@@ -223,16 +218,14 @@ SCM_PROGRAMMING = GenericSCM(
                 },
     fnc_dict={'senior-level_skill': fn_skilled, 'nr_commits': fn_nr_commits, 'nr_stars': fn_nr_stars, 'fever': fn_fever,
               'fatigue': fn_fatigue},
-    y_name= 'senior-level_skill',
+    y_name='senior-level_skill',
     sigmoidal=['senior-level_skill'],
-    costs=np.ones(5),
+    costs=[5.0, 5.0, 0.0001, 0.01, 0.1],
     bound_dict={'years_experience': (0, sys.maxsize), 'degree': (0, 3),
                 'nr_commits': (0, sys.maxsize),
                 'nr_languages': (0, sys.maxsize),
                 'nr_stars': (0, sys.maxsize)}
 )
-
-
 
 
 #  OVERVIEW
