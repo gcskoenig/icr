@@ -16,8 +16,8 @@ from mcr.experiment.compile import compile_experiments
 from mcr.causality.scms.examples import scm_dict
 
 scm_names = {'3var-causal': '3var-c-3', '3var-noncausal': '3var-nc-3',
-             '7var-covid': '7var-covid-2',
-             '5var-skill': '5var-skill-3'
+             '7var-covid': '7var-covid-3',
+             '5var-skill': '5var-skill-4'
              }
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
