@@ -7,6 +7,7 @@ import numpy as np
 from mcr.causality.utils import indvd_to_intrv
 import pandas as pd
 import argparse
+from tqdm import tqdm
 
 scms = ['3var-causal', '3var-noncausal', '5var-skill', '7var-covid']
 model_dict = {'3var-causal': 'logreg', '3var-noncausal': 'logreg',
@@ -76,7 +77,7 @@ if __name__ == "__main__":
         # for each scm compute recourse recommendation(s) for N_INDIV individuals
         for gamma in gammas:
             print(f'gamma: {gamma}')
-            for ii in range(N_INDIVID):
+            for ii in tqdm(range(N_INDIVID)):
                 print(f'individual: {ii}')
 
                 ix = ixs_rejected[ii]
