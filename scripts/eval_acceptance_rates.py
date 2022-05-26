@@ -37,10 +37,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("")
 
     parser.add_argument("savepath", help="path to savepath", type=str)
+    parser.add_argument("--N", help="number of runs", type=int, default=N_INDIVID)
 
     args = parser.parse_args()
 
     savepath = args.savepath
+    N_INDIVID = args.N
 
     # iterate over the different scms
     for scm_name in scms:
@@ -170,7 +172,8 @@ if __name__ == "__main__":
         else:
             ls = list(df.columns)
             for col in except_cols:
-                ls.pop(ls.index(col))
+                if col in ls:
+                    ls.pop(ls.index(col))
             cols = ls
         for col in cols:
             df[col] = np.array(df[col], dtype=np.float64)
@@ -178,7 +181,7 @@ if __name__ == "__main__":
 
     df_all = []
     for scm in scms:
-        df = convert_data(results[scm], except_cols=['type', 'eta_emp_type'])
+        df = convert_data(results[scm], except_cols=['type', 'eta_emp_type', 'scm'])
         df_2 = df.copy()
         df_2['eta_emp'] = get_bound(df['gamma_spec'], thresh)
         df['eta_emp_type'] = 'emp'
