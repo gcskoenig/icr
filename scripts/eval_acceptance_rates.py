@@ -76,9 +76,9 @@ if __name__ == "__main__":
 
         # for each scm compute recourse recommendation(s) for N_INDIV individuals
         for gamma in gammas:
-            print(f'gamma: {gamma}')
+            print(f'\t{scm_name}, gamma: {gamma}')
             for ii in tqdm(range(N_INDIVID)):
-                print(f'individual: {ii}')
+                # print(f'individual: {ii}')
 
                 ix = ixs_rejected[ii]
 
@@ -91,7 +91,7 @@ if __name__ == "__main__":
                                        POP_SIZE=400, NGEN=800, lbd=lbd)
 
                 winner, goal_cost, intv_cost = result_tupl
-                print(winner)
+                # print(winner)
 
                 indivduals = np.array([winner])
                 values = np.array([[goal_cost]])
@@ -194,7 +194,7 @@ if __name__ == "__main__":
 
     df_all.to_csv(savepath + 'df_all.csv')
 
-    sns.lineplot(data=df.reset_index(), x='gamma_spec', y='eta_emp',
+    sns.lineplot(data=df_all.reset_index(), x='gamma_spec', y='eta_emp',
                  hue='eta_emp_type', style='scm')
     plt.savefig(savepath + 'lineplot.pdf')
     plt.show()
