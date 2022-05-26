@@ -33,7 +33,7 @@ python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [save
 
 python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 3 --NGEN 1000 --POP_SIZE 500 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
+python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 3 --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
 
 python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ 3 --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
 ```
