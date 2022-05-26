@@ -21,26 +21,30 @@ In order to install the package and its functionality, run ``pip install -e mcr`
 
 ## The Package
 
-The package allows to apply MCR and CR to binomial binary problems.
+The package allows to apply MCR, CR and CE to problems with specified causal knowledge.
 An SCM can be specified and a series of experiments can be run.
 
 ## How to Reproduce Results
 
-In order to generate the examplary SCMs, you can run ```python scripts/generate-scms.py```.
-All SCMS that are required to reproduce the paper results have already been generated and can be found in ```scms/```.
+In order to reproduce our results, run the following script for ``[confidence]`` 0.75, 0.85, 0.95 and 0.9 and for ```[savepath]``` being the path were you would like to store the experiment results.
 
-In order to reproduce a full comparison of all four methods on a given example, run ```scripts/experiment-all-types-v2.py```.
-After completion, the script automatically calls ```compile.py```, which aggregates the experiment results in several ```.csv``` files.
+```bash
+python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [savepath]/3var-nc/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-In order to reproduce our results, run the following script for ``[gamma]`` 0.95 and 0.9 and for ```[scm-path]``` being ```[path-to-readme-folder]/scms/example1/``` (and ```[path-to-readme-folder]/scms/example1_two_unrelated/``` for the model multiplicity results in the appendix).
+python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
+
+python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 3 --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
+
+python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ 3 --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
+```
+
+The experiments can be compiled and combined into a plot using 
 
 ```
-python scripts/experiment-all-types.py [path-to-experiment-folder] [scm-path] [gamma] 6000 5
+python scripts/plots.py --savepath [savepath]
 ```
 
-6000 is the overall sample size and 5 is the number of experiment iterations.
-
-In the ``[path-to-experiment-folder]`` folder you can then find two files called
+In the ``[savepath]`` folder, for each scm you can then find two files called
 
 - ``resultss.csv``: summary statistics for all experiment folders in the specified result folder. mean and standard deviation for
   - `eta_mean`: specified desired acceptance rate
@@ -54,6 +58,4 @@ In the ``[path-to-experiment-folder]`` folder you can then find two files called
   - `[...]_std`: the respective standard deviations
 - ``invs_resultss.csv``: overview of interventions performed for each of the variables as well as aggregated for causes and non-causal variables
 
-These values indicate the results presented in the paper.
-
-The experimental results presented in the paper can be found in the archive `[path-to-readme-folder]/results.zip`.
+Furthermore you find summary plots and text files that were used to produce the latex tables in the Appendix of the paper.
