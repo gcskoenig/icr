@@ -118,7 +118,7 @@ if __name__ == "__main__":
     ylim = [-0.1, 1.1]
 
     metric_sets = {'improvement': ['gamma_obs'],
-                   'acceptance': ['eta_obs', 'eta_obs_refits_batch0_mean', 'eta_obs_individualized']}
+                   'acceptance': ['eta_obs', 'eta_obs_refits_batch0_mean']}#, 'eta_obs_individualized']}
     ncol = 6
     tickright = False
 
