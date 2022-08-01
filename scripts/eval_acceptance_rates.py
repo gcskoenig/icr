@@ -13,7 +13,7 @@ scms = ['3var-causal', '3var-noncausal', '5var-skill', '7var-covid']
 model_dict = {'3var-causal': 'logreg', '3var-noncausal': 'logreg',
               '5var-skill': 'rf',
               '7var-covid': 'rf'}
-scms = ['3var-noncausal', '3var-causal', '5var-skill', '7var-covid']
+scms = ['7var-covid']
 
 use_scm_pred = False
 lbd = 5000
