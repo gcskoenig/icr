@@ -10,15 +10,13 @@ from matplotlib import rc
 import argparse
 
 sns.set_context('paper')
-#sns.set(rc={'text.usetex': True})
 rc('font', **{'family': 'serif', 'serif': ['Bookman']})
 
 from mcr.experiment.compile import compile_experiments
-from mcr.causality.scms.examples import scm_dict
 
-scm_names = {'3var-causal': '3var-c', '3var-noncausal': '3var-nc',
-             '7var-covid': '7var-covid',
-             '5var-skill': '5var-skill'
+scm_names = {'3var-causal': '3var-c-collected', '3var-noncausal': '3var-nc-collected',
+             '7var-covid': '7var-covid-collected',
+             '5var-skill': '5var-skill-collected'
              }
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
@@ -55,7 +53,7 @@ if __name__ == "__main__":
 
     dfss = pd.concat(dfss, ignore_index=True)
     dfss['confidence'] = dfss['gamma'].copy()
-    dfss.loc[dfss['t_type'] == 'improvement', 't_type'] = 'MCR'
+    dfss.loc[dfss['t_type'] == 'improvement', 't_type'] = 'ICR'
     dfss.loc[dfss['t_type'] == 'acceptance', 't_type'] = 'CR'
     dfss.loc[dfss['t_type'] == 'counterfactual', 't_type'] = 'CE'
 
@@ -84,7 +82,7 @@ if __name__ == "__main__":
             df_plt['value'] = values
             df_plt['metric'] = value_names[value] + ' ' + df_plt['method'].copy()
             if value == 'eta_obs_individualized':
-                ixs_indMCR = np.logical_and(df_plt['method'] == 'MCR', df_plt['type'] == 'individualized')
+                ixs_indMCR = np.logical_and(df_plt['method'] == 'ICR', df_plt['type'] == 'individualized')
                 df_plt = df_plt.loc[ixs_indMCR, :].copy()
                 df_plt['type'] = 'ind. prediction'
             dfs_plt.append(df_plt)
@@ -96,29 +94,27 @@ if __name__ == "__main__":
         df_cp.loc[df_plt['t_type'] == 'CE', 'confidence'] = 0.75
         df_plt = pd.concat([df_plt, df_cp], ignore_index=True)
 
-        ixs_indiv = np.logical_and(df_plt['t_type'] == 'MCR', df_plt['r_type'] == 'individualized')
-        ixs_indiv = np.logical_and(ixs_indiv, df_plt['metric'] == 'gamma_obs MCR')
+        ixs_indiv = np.logical_and(df_plt['t_type'] == 'ICR', df_plt['r_type'] == 'individualized')
+        ixs_indiv = np.logical_and(ixs_indiv, df_plt['metric'] == 'gamma_obs ICR')
         df_plt_ind = df_plt.loc[ixs_indiv, :].copy()
-
-
 
         df_plt = df_plt.sort_values(['metric', 't_type'])
         return df_plt
 
 
-
     df_plt = compile_df_plt(dfss, value_types, value_names)
-    ixs_indiv = df_plt['metric'] == '$\eta^{obs, ind}$ MCR'
+    ixs_indiv = df_plt['metric'] == '$\eta^{obs, ind}$ ICR'
 
     df_plt = compile_df_plt(dfss, ['gamma_obs'], value_names)
 
     sns.set_style('whitegrid')
     ticks = [0.0, 0.5, 0.75, 0.85, 0.9, 0.95, 1.0]
     xticks = [0.75, 0.85, 0.9, 0.95]
-    ylim = [-0.1, 1.1]
+    ylim = [0.0, 1.005]
 
     metric_sets = {'improvement': ['gamma_obs'],
-                   'acceptance': ['eta_obs', 'eta_obs_refits_batch0_mean']}#, 'eta_obs_individualized']}
+                   'acceptance': ['eta_obs', 'eta_obs_individualized'],
+                   'acceptance_refit': ['eta_obs_refits_batch0_mean']}
     ncol = 6
     tickright = False
 
@@ -127,10 +123,10 @@ if __name__ == "__main__":
 
         with sns.plotting_context('talk'):
 
-            legend = True
-            if name == 'acceptance':
+            legend = False
+            if name == 'improvement':
                 legend = False
-                #legend = True
+                # legend = True
 
 
             g2 = sns.relplot(data=df_plt, x="confidence", y="value", col='metric', style='type',
@@ -139,6 +135,7 @@ if __name__ == "__main__":
                              palette=sns.color_palette("tab10", len(df_plt['scm'].unique())),
                              height=5, aspect=0.6,
                              legend=legend, alpha=0.7,
+                             ci='sd',
                              facet_kws={'sharex': False, 'sharey': False})
             g2.set_titles('{col_name}')
             g2.set_axis_labels(r'confidence', r'')
@@ -170,12 +167,12 @@ if __name__ == "__main__":
                     ax.set_xticks([0.75, 0.95])
                     ax.set_xticklabels([])
                 new_title = ''
-                if 'MCR' in title:
-                    new_title += 'MCR'
-                    ax.set_xlabel('$\gamma$')
+                if 'ICR' in title:
+                    new_title += 'ICR'
+                    ax.set_xlabel('$\overline{\gamma}$')
                 elif 'CR' in title:
                     new_title += 'CR'
-                    ax.set_xlabel('$\eta$')
+                    ax.set_xlabel('$\overline{\eta}$')
                 else:
                     new_title += 'CE'
                     ax.set_xlabel('')
