@@ -192,7 +192,7 @@ if __name__ == "__main__":
         df_all.append(df)
     df_all = pd.concat(df_all, ignore_index=True)
 
-    results.to_csv(savepath + 'results.csv')
+    results[scm_name].to_csv(savepath + 'results.csv')
 
     sns.lineplot(data=df_all.reset_index(), x='gamma_spec', y='eta_emp',
                  hue='eta_emp_type', style='scm')
