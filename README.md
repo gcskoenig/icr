@@ -29,13 +29,13 @@ An SCM can be specified and a series of experiments can be run.
 In order to reproduce our results, run the following script for ``[confidence]`` 0.75, 0.85, 0.95 and 0.9 and for ```[savepath]``` being the path were you would like to store the experiment results.
 
 ```bash
-python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [savepath]/3var-nc/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
+python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [savepath]/3var-nc/ 10 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
+python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ 10 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 3 --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
+python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 10 --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
 
-python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ 3 --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
+python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ 10 --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
 ```
 
 The experiments can be compiled and combined into a plot using 
