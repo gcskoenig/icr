@@ -235,7 +235,7 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         for ii in range(nr_refits_batch0):
             model_tmp = None
             if model_type == 'logreg':
-                model_tmp = LogisticRegression(penalty='none', **kwargs_model)
+                model_tmp = LogisticRegression(penalty=None, **kwargs_model)
             elif model_type == 'rf':
                 model_tmp = RandomForestClassifier(**kwargs_model)
             else:
