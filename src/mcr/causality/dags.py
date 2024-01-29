@@ -21,7 +21,7 @@ class DirectedAcyclicGraph:
         assert adjacency_matrix.shape[0] == len(var_names)
 
         adjacency_matrix = adjacency_matrix.astype(int)
-        self.DAG = nx.convert_matrix.from_numpy_matrix(adjacency_matrix, create_using=nx.DiGraph)
+        self.DAG = nx.convert_matrix.from_numpy_array(adjacency_matrix, create_using=nx.DiGraph)
         assert nx.algorithms.dag.is_directed_acyclic_graph(self.DAG)
 
         self.var_names = np.array(var_names, dtype=str)

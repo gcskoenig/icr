@@ -69,6 +69,10 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             path_it = path + '{}/'.format(it)
             for r_type in r_types:
                 for t_type in t_types:
+                    # for counterfactual all results are "individualized"
+                    if t_type == 'counterfactual' and r_type == 'subpopulation':
+                        continue
+                    
                     path_it_config = path_it + '{}-{}/'.format(t_type, r_type)
 
                     # try to read the stats.json
@@ -85,16 +89,15 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
 
                         stats['iteration'] = it
                         stats_series = pd.Series(stats)
-                        df = df.append(stats_series[cols], ignore_index=True)
-
-                        if not type(stats_series['model_coef']) is list:
+                        df = pd.concat([df, stats_series[cols].to_frame().T], ignore_index=True)
+                        if type(stats_series['model_coef']) is list:
                             coefs = pd.Series(stats_series['model_coef'][0] + stats_series['model_coef'][1])
 
                             coefs['t_type'] = t_type
                             coefs['r_type'] = r_type
                             coefs['it'] = int(it)
 
-                            df_coefs = df_coefs.append(coefs, ignore_index=True)
+                            df_coefs = pd.concat([df_coefs, coefs.to_frame().T], ignore_index=True)
 
                             if assess_robustness:
                                 coefs_refit = pd.Series(stats_series['model_coef_refit'][0] +
@@ -104,7 +107,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                                 coefs_refit['r_type'] = r_type
                                 coefs_refit['it'] = int(it)
 
-                                df_coefs_refits = df_coefs_refits.append(coefs_refit, ignore_index=True)
+                                df_coefs_refits = pd.concat([df_coefs_refits, coefs_refit.to_frame().T], ignore_index=True)
 
                     except Exception as err:
                         logging.warning('Could not load file[s] {}'.format(path_it_config + '[batch2_]stats.json'))
@@ -115,15 +118,15 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                         cost_tmp = pd.read_csv(path_it_config + 'costss.csv', index_col=0)
                         invs_tmp = pd.read_csv(path_it_config + 'invs.csv', index_col=0)
 
+                        ixs_recourse = invs_tmp
                         ixs_recourse_recommended = invs_tmp.index[(invs_tmp.abs().mean(axis=1) > 0)]
 
                         logging.info(f'# of recourse individuals {len(ixs_recourse)}')
                         logging.info(f'# of recommended ixs {len(ixs_recourse_recommended)}')
 
                         cost = cost_tmp.loc[ixs_recourse_recommended, 'intv_cost'].mean()
-                        df_cost = df_cost.append(
-                            {'r_type': r_type, 't_type': t_type, 'iteration': it, 'intv-cost': cost},
-                            ignore_index=True)
+                        tmp_df = pd.DataFrame({'r_type': [r_type], 't_type': [t_type], 'iteration': [it], 'intv-cost': [cost]})
+                        df_cost = pd.concat([df_cost, tmp_df], ignore_index=True)
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(path_it_config + 'costss.csv'))
 
@@ -136,7 +139,7 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
                         invs['t_type'] = t_type
                         invs['r_type'] = r_type
                         invs['iteration'] = it
-                        df_invs = df_invs.append(invs, ignore_index=True)
+                        df_invs = pd.concat([df_invs, pd.DataFrame.from_dict(invs, orient='index').T], ignore_index=True)
                     except Exception as err:
                         logging.warning('Could not load file {}'.format(path_it_config + 'invs.csv'))
 
@@ -153,7 +156,9 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
             groupby_cols = ['r_type', 't_type']
 
             # main table
-            gb_obj = df.groupby(groupby_cols)
+            df_output = df[groupby_cols + output_cols]
+            df_output = df_output.apply(pd.to_numeric, errors='ignore')
+            gb_obj = df_output.groupby(groupby_cols)
             mean_table = gb_obj.mean()[output_cols]
             # if n_iterations > 1:
             std_table = gb_obj.agg(lambda x: x.std())[output_cols]
@@ -164,8 +169,8 @@ def compile_experiments(savepath, scm_name, dirs=None, assess_robustness=False):
 
             # invs table
             df_invs = df_invs.loc[:, df_invs.columns != 'iteration']
-            df_invs.loc[:, 'causes'] = df_invs.loc[:, causes].sum(axis=1)
-            df_invs.loc[:, 'non-causes'] = df_invs.loc[:, non_causes].sum(axis=1)
+            df_invs.loc[:, 'causes'] = df_invs.loc[:, list(causes)].sum(axis=1)
+            df_invs.loc[:, 'non-causes'] = df_invs.loc[:, list(non_causes)].sum(axis=1)
             gb_obj = df_invs.groupby(groupby_cols)
             invs_mean = gb_obj.mean()
             # if n_iterations > 1:
