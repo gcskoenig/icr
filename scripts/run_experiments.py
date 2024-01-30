@@ -65,6 +65,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    if not os.path.isdir(args.savepath):
+        os.mkdir(args.savepath)
+
     # set logging settings
     logging.getLogger().setLevel(args.logging_level)
 

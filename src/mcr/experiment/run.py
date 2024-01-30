@@ -42,7 +42,7 @@ logging.getLogger().setLevel(20)
 
 def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_scm_pred=False, iterations=5,
                    t_types='all',
-                   seed=42, predict_individualized=False,
+                   seed=None, predict_individualized=False,
                    model_type='logreg', nr_refits_batch0=5, assess_robustness=False,
                    NGEN=400, POP_SIZE=1000, rounding_digits=2, tuning=False, **kwargs_model):
     try:
@@ -54,8 +54,10 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
     else:
         logging.info('Creation of directory %s successful/directory exists already' % savepath)
 
-    # extract SCM
+    if not seed is None:
+        raise NotImplementedError('seed not implemented yet')
 
+    # extract SCM
     if savepath[-1] != '/':
         savepath = savepath + '/'
 
@@ -235,7 +237,7 @@ def run_experiment(scm_name, N, N_recourse, gamma, thresh, lbd, savepath, use_sc
         for ii in range(nr_refits_batch0):
             model_tmp = None
             if model_type == 'logreg':
-                model_tmp = LogisticRegression(penalty='none', **kwargs_model)
+                model_tmp = LogisticRegression(penalty=None, **kwargs_model)
             elif model_type == 'rf':
                 model_tmp = RandomForestClassifier(**kwargs_model)
             else:

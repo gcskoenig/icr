@@ -1,6 +1,8 @@
 # MAC stuff
 .DS_Store
 .idea/
+.vscode/
+launch.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

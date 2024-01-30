@@ -1,4 +1,4 @@
-# Meaningful Causal Recourse: Experiments
+# Improvement-Focused Causal Recourse: Experiments
 
 
 ## Installation
@@ -12,30 +12,30 @@ For torch, follow the instruction on their [website](https://pytorch.org/get-sta
 For scikit-learn check out [their website](https://scikit-learn.org/stable/install.html).
 For pyro, follow the instructions on their [website](https://docs.pyro.ai/en/0.3.1/installation.html).
 
-The dependencies can be found in the `requirements.txt` file.
+The remaining dependencies can be found in the `requirements.txt` file.
 You can install them using ``pip install -r requirements.txt``.
 
 ### Installation with pip
 
-In order to install the package and its functionality, run ``pip install -e mcr`` in the superfolder of the one that contains this README file.
+In order to install the package and its functionality, run ``pip install -e icr`` in the superfolder of the one that contains this README file.
 
 ## The Package
 
-The package allows to apply MCR, CR and CE to problems with specified causal knowledge.
+The package allows to apply ICR, CR and CE to problems with specified causal knowledge.
 An SCM can be specified and a series of experiments can be run.
 
 ## How to Reproduce Results
 
-In order to reproduce our results, run the following script for ``[confidence]`` 0.75, 0.85, 0.95 and 0.9 and for ```[savepath]``` being the path were you would like to store the experiment results.
+In order to reproduce our results, run the following script for ``[confidence]`` 0.75, 0.85, 0.95 and 0.9, for ```[savepath]``` being the path were you would like to store the experiment results, and for ```[nr_runs]``` being the number of runs computed for the given configuration.
 
 ```bash
-python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [savepath]/3var-nc/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
+python scripts/run_experiments.py 3var-noncausal 4000 200 [confidence] 300 [savepath]/3var-nc/ [nr_runs] --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ 3 --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
+python scripts/run_experiments.py 3var-causal 4000 200 [confidence] 300 [savepath]/3var-c/ [nr_runs] --NGEN 600 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True
 
-python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ 3 --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
+python scripts/run_experiments.py 5var-skill 4000 200 [confidence] 300 [savepath]/5var-skill/ [nr_runs] --NGEN 1000 --POP_SIZE 500 --n_digits 0 --nr_refits 5 --predict_individualized True --model_type rf
 
-python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ 3 --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
+python scripts/run_experiments.py 7var-covid 20000 200 [confidence] 2999 [savepath]/7var-covid/ [nr_runs] --NGEN 700 --POP_SIZE 300 --n_digits 1 --nr_refits 5 --predict_individualized True --model_type rf
 ```
 
 The experiments can be compiled and combined into a plot using 
