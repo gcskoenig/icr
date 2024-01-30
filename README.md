@@ -17,7 +17,7 @@ You can install them using ``pip install -r requirements.txt``.
 
 ### Installation with pip
 
-In order to install the package and its functionality, run ``pip install -e mcr`` in the superfolder of the one that contains this README file.
+In order to install the package and its functionality, run ``pip install -e icr`` in the superfolder of the one that contains this README file.
 
 ## The Package
 
