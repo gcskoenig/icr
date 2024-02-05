@@ -14,9 +14,9 @@ rc('font', **{'family': 'serif', 'serif': ['Bookman']})
 
 from icr.experiment.compile import compile_experiments
 
-scm_names = {'3var-causal': '3var-c-collected', '3var-noncausal': '3var-nc-collected',
-             '7var-covid': '7var-covid-collected',
-             '5var-skill': '5var-skill-collected'
+scm_names = {'3var-causal': '3var-c', '3var-noncausal': '3var-nc',
+             '7var-covid': '7var-covid',
+             '5var-skill': '5var-skill'
              }
 levels = ['gam0.75_', 'gam0.85_', 'gam0.9_', 'gam0.95_']
 
