@@ -43,7 +43,7 @@ The experiments can be compiled and combined into a plot using
 ```
 python scripts/plots.py --savepath [savepath]
 ```
-
+where the `[savepath]` is the same path used above when running the experiments. If you use folder names different from those specified above for the results, you may have to go into the `plots.py` script to adapt them (by adjusting the `scm_names` dictionary).
 In the ``[savepath]`` folder, for each scm you can then find two files called
 
 - ``resultss.csv``: summary statistics for all experiment folders in the specified result folder. mean and standard deviation for
@@ -58,4 +58,4 @@ In the ``[savepath]`` folder, for each scm you can then find two files called
   - `[...]_std`: the respective standard deviations
 - ``invs_resultss.csv``: overview of interventions performed for each of the variables as well as aggregated for causes and non-causal variables
 
-Furthermore you find summary plots and text files that were used to produce the latex tables in the Appendix of the paper.
+Furthermore, you find summary plots and text files used to produce the latex tables in the paper's Appendix.
