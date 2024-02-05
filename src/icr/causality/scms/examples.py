@@ -1,11 +1,11 @@
 import jax.nn
 
-from mcr.causality.scms import GenericSCM
-from mcr.causality.dags import DirectedAcyclicGraph
+from icr.causality.scms import GenericSCM
+from icr.causality.dags import DirectedAcyclicGraph
 import numpy as np
 import numpyro
 import numpyro.distributions as dist
-from mcr.causality.scms.functions import *
+from icr.causality.scms.functions import *
 import sys
 
 # # EXAMPLE 1 SCM
@@ -126,17 +126,17 @@ fn_covid = lambda x, u: jnp.greater_equal(fn_covid_raw(x), u)
 fn_covid_transf = lambda x, x_j: unif_transform(fn_covid_raw(x), x_j)
 fn_covid = StructuralFunction(fn_covid, raw=fn_covid_raw, transform=fn_covid_transf, binary=True)
 
-fn_appetite_raw = lambda x: jax.nn.sigmoid(- 2 * x[..., 0])
+fn_appetite_raw = lambda x: jax.nn.sigmoid(- 2.0 * x[..., 0])
 fn_appetite = lambda x, u: jnp.greater_equal(fn_appetite_raw(x), u)
 fn_appetite_transf = lambda x, x_j: unif_transform(fn_appetite_raw(x), x_j)
 fn_appetite = StructuralFunction(fn_appetite, raw=fn_appetite_raw, transform=fn_appetite_transf, binary=True)
 
-fn_fever_raw = lambda x: jax.nn.sigmoid(+ 6 - 9 * x[..., 0])
+fn_fever_raw = lambda x: jax.nn.sigmoid(+ 6 - 9.0 * x[..., 0])
 fn_fever = lambda x, u: jnp.greater_equal(fn_fever_raw(x), u)
 fn_fever_transf = lambda x, x_j: unif_transform(fn_fever_raw(x), x_j)
 fn_fever = StructuralFunction(fn_fever, raw=fn_fever_raw, transform=fn_fever_transf, binary=True)
 
-fn_fatigue_raw = lambda x: jax.nn.sigmoid(-1 + x[..., 0]**2 - 2 * x[..., 1])
+fn_fatigue_raw = lambda x: jax.nn.sigmoid(-1.0 + x[..., 0]**2 - 2.0 * x[..., 1])
 fn_fatigue = lambda x, u: jnp.greater_equal(fn_fatigue_raw(x), u)
 fn_fatigue_transf = lambda x, x_j: unif_transform(fn_fatigue_raw(x), x_j)
 fn_fatigue = StructuralFunction(fn_fatigue, raw=fn_fatigue_raw, transform=fn_fatigue_transf, binary=True)
@@ -172,7 +172,6 @@ SCM_COVID = GenericSCM(
     bound_dict={'covid_shots': (0, 3), 'flu_shot': (0, 1), 'pop_density': (0, float('Inf'))}
 )
 
-#
 
 # COVID EXAMPLE
 

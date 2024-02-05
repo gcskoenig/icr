@@ -3,8 +3,8 @@ from torch import Tensor
 from torch.distributions import Distribution, Normal
 import numpy as np
 import json
-from mcr.causality import DirectedAcyclicGraph
-from mcr.causality.scms import StructuralCausalModel
+from icr.causality import DirectedAcyclicGraph
+from icr.causality.scms import StructuralCausalModel
 import torch.distributions as dist
 import logging
 

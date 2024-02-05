@@ -12,7 +12,7 @@ import argparse
 sns.set_context('paper')
 rc('font', **{'family': 'serif', 'serif': ['Bookman']})
 
-from mcr.experiment.compile import compile_experiments
+from icr.experiment.compile import compile_experiments
 
 scm_names = {'3var-causal': '3var-c-collected', '3var-noncausal': '3var-nc-collected',
              '7var-covid': '7var-covid-collected',

@@ -1,5 +1,5 @@
-from mcr.experiment.compile import compile_experiments
-from mcr.causality.scms.examples import scm_dict
+from icr.experiment.compile import compile_experiments
+from icr.causality.scms.examples import scm_dict
 import argparse
 import logging
 import numpy as np

@@ -6,7 +6,7 @@ from deap import base, creator
 from deap.algorithms import eaMuPlusLambda
 from deap import tools
 
-from mcr.recourse.evaluation import GreedyEvaluator, similar
+from icr.recourse.evaluation import GreedyEvaluator, similar
 
 # LOGGING
 

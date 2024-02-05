@@ -1,6 +1,6 @@
-import mcr.causality.scms.examples as ex
-from mcr.experiment.run import run_experiment
-from mcr.experiment.compile import compile_experiments
+import icr.causality.scms.examples as ex
+from icr.experiment.run import run_experiment
+from icr.experiment.compile import compile_experiments
 import random
 import argparse
 import os

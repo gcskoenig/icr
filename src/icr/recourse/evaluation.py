@@ -3,7 +3,7 @@ import pandas as pd
 import torch
 import logging
 import functools
-from mcr.causality.utils import indvd_to_intrv
+from icr.causality.utils import indvd_to_intrv
 
 logger = logging.getLogger(__name__)
 

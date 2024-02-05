@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from mcr.causality.utils import indvd_to_intrv
+from icr.causality.utils import indvd_to_intrv
 
 
 def compute_h_post_individualized(scm, X_pre, X_post, invs, features, y_name, y=1):

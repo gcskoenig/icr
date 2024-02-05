@@ -6,9 +6,9 @@ import pandas as pd
 from sklearn.metrics import accuracy_score
 from tqdm import tqdm
 
-from mcr.causality.utils import indvd_to_intrv
-from mcr.recourse.recourse import recourse
-from mcr.recourse.utils import compute_h_post_individualized
+from icr.causality.utils import indvd_to_intrv
+from icr.recourse.recourse import recourse
+from icr.recourse.utils import compute_h_post_individualized
 
 
 def recourse_population(scm, X, y, U, y_name, costs, proportion=1.0, N_max=None, nsamples=10**3, r_type='individualized',
