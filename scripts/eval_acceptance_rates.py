@@ -1,10 +1,10 @@
-from mcr.causality.scms.examples import scm_dict
-from mcr.recourse import recourse
+from icr.causality.scms.examples import scm_dict
+from icr.recourse import recourse
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 import numpy as np
-from mcr.causality.utils import indvd_to_intrv
+from icr.causality.utils import indvd_to_intrv
 import pandas as pd
 import argparse
 from tqdm import tqdm

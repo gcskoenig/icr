@@ -10,7 +10,7 @@ from torch.distributions import Distribution
 import jax.random as jrandom
 
 import numpyro
-from mcr.causality import DirectedAcyclicGraph
+from icr.causality import DirectedAcyclicGraph
 
 import logging
 logger = logging.getLogger(__name__)

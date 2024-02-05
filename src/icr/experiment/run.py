@@ -34,9 +34,9 @@ import numpy as np
 import math
 import os
 
-import mcr.causality.scms.examples as ex
-from mcr.recourse import recourse_population, save_recourse_result
-from mcr.experiment.predictors import get_tuning_rf
+import icr.causality.scms.examples as ex
+from icr.recourse import recourse_population, save_recourse_result
+from icr.experiment.predictors import get_tuning_rf
 
 logging.getLogger().setLevel(20)
 

@@ -1,4 +1,4 @@
-from mcr.causality.scms.examples import scm_dict
+from icr.causality.scms.examples import scm_dict
 
 import seaborn as sns
 import matplotlib.pyplot as plt

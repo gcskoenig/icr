@@ -4,7 +4,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import pandas as pd
 import json
 import os
-import mcr.causality.scms.examples as ex
+import icr.causality.scms.examples as ex
 
 import logging
 

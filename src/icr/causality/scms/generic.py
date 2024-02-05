@@ -1,7 +1,7 @@
 import collections
 
-from mcr.causality.scms import StructuralCausalModel
-from mcr.distributions.utils import numpyrodist_to_pyrodist, add_uncertainty
+from icr.causality.scms import StructuralCausalModel
+from icr.distributions.utils import numpyrodist_to_pyrodist, add_uncertainty
 
 import jax.numpy as jnp
 import numpyro
@@ -11,8 +11,8 @@ import torch
 import jax.random as jrandom
 import numpy as np
 import logging
-from mcr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible, BivariateSigmoidal
-from mcr.causality.scms.functions import linear_additive, linear_additive_torch
+from icr.distributions.multivariate import MultivariateIndependent, BivariateBernoulli, BivariateInvertible, BivariateSigmoidal
+from icr.causality.scms.functions import linear_additive, linear_additive_torch
 import collections
 
 

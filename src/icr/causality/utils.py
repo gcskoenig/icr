@@ -1,4 +1,4 @@
-from mcr.causality.scms import BinomialBinarySCM, GenericSCM
+from icr.causality.scms import BinomialBinarySCM, GenericSCM
 
 def indvd_to_intrv(scm, features, individual, obs, causes_of=None):
     """

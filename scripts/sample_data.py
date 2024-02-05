@@ -1,5 +1,5 @@
 # how to sample data
-from mcr.causality.scms.examples import scm_dict
+from icr.causality.scms.examples import scm_dict
 print(scm_dict.keys())
 
 scm = scm_dict['3var-noncausal']

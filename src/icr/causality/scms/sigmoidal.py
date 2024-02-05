@@ -1,11 +1,11 @@
-from mcr.causality.scms import BinomialBinarySCM
+from icr.causality.scms import BinomialBinarySCM
 import torch
 import numpy as np
 import torch.distributions as dist
-from mcr.causality.dags import DirectedAcyclicGraph
+from icr.causality.dags import DirectedAcyclicGraph
 import json
 import logging
-from mcr.distributions.multivariate import TransformedUniform
+from icr.distributions.multivariate import TransformedUniform
 
 logger = logging.getLogger()
 
